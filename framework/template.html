@@ -110,7 +110,8 @@ canvas#c{display:block;width:100%;height:100%}
   <button id="btnEdit" onclick="editSelected()" disabled title="선택 노드 편집">편집</button>
   <button id="btnDelete" onclick="deleteSelected()" disabled style="color:#DC2626;border-color:#FECACA" title="선택 노드 삭제">삭제</button>
   <div class="sep"></div>
-  <button onclick="exportToExcel()" title="현재 모델을 Excel 수식이 박힌 .xlsx로 다운로드">📥 엑셀 다운로드</button>
+  <button onclick="exportToExcel()" title="현재 모델을 Excel 수식이 박힌 .xlsx로 다운로드">📥 엑셀</button>
+  <button onclick="exportToJSON()" title="IR JSON 내보내기 (Python build_excel.py 입력용)">📥 JSON</button>
   <button onclick="resetToDraft()" title="편집·시뮬레이션 변경을 버리고 초안 상태로 복귀">초안 리셋</button>
 </div>
 <div class="hud legend">
@@ -1790,6 +1791,23 @@ function astToExcel(ast, year, rowMap){
     }
   }
   throw new Error('AST 변환 실패');
+}
+
+// IR JSON 내보내기 — Python build_excel.py 입력용
+function exportToJSON(){
+  let payload={
+    version: 1,
+    YRS: YRS.slice(),
+    D: _serializeD(),
+    SV: Object.fromEntries(Object.entries(SV).map(([k,v])=>[k,v.slice()])),
+  };
+  let blob=new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement('a');
+  let ts=new Date().toISOString().slice(0,10);
+  a.href=url; a.download='financial_model_'+ts+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function exportToExcel(){
