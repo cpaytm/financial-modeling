@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>인터랙티브 추정 모델 — 템플릿</title>
 <style>
-/* Financial Modeling DS — fonts (Outfit for heading, Pretendard for body). 토큰: ds/tokens.js */
+/* Financial Modeling DS — fonts (Outfit for heading, Pretendard for body). 토큰: design-guide/tokens.js */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -13,11 +13,12 @@
 body{font-family:'Pretendard',-apple-system,sans-serif;background:#F8F8FA;color:#0F0F12;overflow:hidden;height:100vh;width:100vw}
 canvas#c{display:block;width:100%;height:100%}
 .hud{position:fixed;z-index:100;background:#fff;border:1px solid #ddd;border-radius:6px;padding:6px 12px;font-size:11px;color:#666;box-shadow:0 2px 8px rgba(0,0,0,.06);user-select:none}
-.top-bar{top:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center}
-.top-bar button{height:26px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;color:#333;padding:0 10px;font-family:'Pretendard',sans-serif}
+.top-bar{top:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;max-width:calc(100vw - 28px);overflow-x:auto;overflow-y:hidden;white-space:nowrap}
+.top-bar button{height:26px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;color:#333;padding:0 10px;font-family:'Pretendard',sans-serif;line-height:24px;white-space:nowrap;flex:0 0 auto}
 .top-bar button:hover{background:#F3F4F6}
-.top-bar .sep{width:1px;height:18px;background:#ddd}
-#zoom-label{min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
+.top-bar .sep{width:1px;height:18px;background:#ddd;flex:0 0 auto}
+.top-bar #selLabel{white-space:nowrap;flex:0 0 auto}
+#zoom-label{min-width:34px;text-align:center;font-variant-numeric:tabular-nums;flex:0 0 auto}
 .legend{bottom:12px;left:12px;font-size:10px;line-height:1.8}
 .legend span{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:3px}
 .hint{bottom:12px;right:12px;font-size:10px;color:#aaa;text-align:right;line-height:1.6}
@@ -162,7 +163,7 @@ canvas#c{display:block;width:100%;height:100%}
 // ============================================================
 // 인터랙티브 추정 모델 — 템플릿
 //
-// docs/modeling_framework.md의 Part II 구현 청사진. 회사별 데이터·트리·계산식을
+// html-framework/html_modeling_framework.md의 Part II 구현 청사진. 회사별 데이터·트리·계산식을
 // 채워 단일 HTML 산출물로 사용. 엔진(렌더링·UI·시뮬레이터·케이스 관리)은
 // 그대로 두고 아래 표시된 5개 블록만 회사에 맞게 수정한다.
 //
@@ -184,7 +185,7 @@ const YRS=['2025','2026','2027','2028','2029','2030','2031'];
 
 // ============================================================
 // DATA LAYER — 노드 단일 저장소 (수식 그래프 + 트리 구조 통합)
-// 자세한 스키마: docs/modeling_framework.md §9
+// 자세한 스키마: html-framework/html_modeling_framework.md §9
 //
 // 각 노드 스키마:
 //   v:       [v_y1, ..., v_yN]   계산된 값 (simCalc이 갱신)

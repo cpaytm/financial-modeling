@@ -1,8 +1,8 @@
-# Financial Modeling Design System
+﻿# Financial Modeling Design System
 
 본 레포의 HTML 산출물·문서·향후 페이지의 시각 일관성을 보장하는 디자인 시스템.
 
-토큰의 실제 값은 [`ds/tokens.js`](../ds/tokens.js) — 단일 진실 소스.
+토큰의 실제 값은 [`tokens.js`](tokens.js) — 단일 진실 소스.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 구분 | 역할 |
 |------|------|
-| 디자이너·기획자 | UI 규칙을 본 가이드에 정의. 토큰 값(컬러·간격·타이포)은 `ds/tokens.js`에서 수정. |
+| 디자이너·기획자 | UI 규칙을 본 가이드에 정의. 토큰 값(컬러·간격·타이포)은 `tokens.js`에서 수정. |
 | 개발자 | 본 가이드의 컴포넌트만 사용. 임의 스타일 수정 금지. 없는 게 필요하면 "요청"으로 추가. |
 | 점진 적용 | 기존 산출물 한번에 바꿀 필요 없음. 새 산출물부터 DS 적용. |
 
@@ -18,7 +18,7 @@
 
 ## 점진 적용 가이드
 
-이미 운영 중인 산출물(예: `examples/getcha-fy26/index.html`)은 한번에 전환하지 않음.
+이미 운영 중인 산출물은 한번에 전환하지 않음.
 
 1. **신규부터 DS 적용** — 새로 만드는 모든 HTML 산출물은 본 가이드의 토큰·컴포넌트로만 구성. 레거시 코드는 건드리지 않음.
 2. **수정 작업 시 같이 전환** — 버그 수정·기능 추가로 기존 산출물을 손대게 될 때 해당 섹션만 DS로 교체. 전체 리팩토링 아님.
@@ -37,7 +37,7 @@
 | `SidebarLayout` | Docs 상세 | 좌측 LNB + 본문 |
 | `ArticleLayout` | Blog 상세 | 좌측 TOC (sticky) + 본문 |
 
-현재 레포의 인터랙티브 트리(`framework/template.html`)는 별도 카테고리 — Canvas 기반 단일 페이지 앱.
+현재 레포의 인터랙티브 트리(`html-framework/template.html`)는 별도 카테고리 — Canvas 기반 단일 페이지 앱.
 
 ---
 
@@ -262,7 +262,7 @@ variants: primary | outline | text
 
 **추가 후 프로세스**
 
-1. DS 담당자가 컴포넌트 설계 → `ds/tokens.js`에 토큰 추가, 가이드에 반영
+1. DS 담당자가 컴포넌트 설계 → `tokens.js`에 토큰 추가, 가이드에 반영
 2. 본 문서에 실물 + 코드 예시 업데이트
 3. 개발자는 가이드 보고 사용
 4. 같은 요구사항이 또 나와도 동일 컴포넌트 재사용
@@ -273,6 +273,6 @@ variants: primary | outline | text
 
 | 산출물 | 적용 여부 | 비고 |
 |--------|----------|------|
-| [`framework/template.html`](../framework/template.html) | ✅ 적용 | Outfit·Pretendard 폰트, primary.500 강조색, light surfaces |
-| [`examples/getcha-fy26/index.html`](../examples/getcha-fy26/index.html) | ❌ 미적용 | 레거시 참조 구현. 차후 수정 시 점진 적용 |
+| [`html-framework/template.html`](../html-framework/template.html) | ✅ 적용 | Outfit·Pretendard 폰트, primary.500 강조색, light surfaces |
+| `html-examples/*/index.html` | 신규 적용 대상 | 새 HTML 예시는 본 DS를 기준으로 작성 |
 | (향후) 마케팅 페이지·문서 사이트 | — | 본 DS 100% 준수 |

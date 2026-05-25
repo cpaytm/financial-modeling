@@ -1,4 +1,4 @@
-# 비상장 기업 추정 모델링 방법론 및 구현 프레임워크
+﻿# 비상장 기업 추정 모델링 방법론 및 구현 프레임워크
 
 **HTML 인터랙티브 트리로 구조화한 뒤 엑셀 모델로 실행하는 분석 체계, 그리고 그 HTML 레이어의 구현 청사진.**
 
@@ -6,7 +6,7 @@
 
 본 문서는 분석 방법론(Part I)과 그 산출물인 HTML 인터랙티브 트리의 구현 프레임워크(Part II), 최종 산출물인 엑셀 모델의 변환 규약(Part III), 그리고 운영·거버넌스(Part IV)로 구성된다. 서비스 구현 사양이 아니라 분석가가 따라야 할 작업 체계·산출물 구조·구현 청사진을 정리한 것이다.
 
-겟차(Getcha) FY26 모델(`getcha_tree_final_1.html`, 1500줄, 92KB)이 본 프레임워크의 첫 적용 사례이자 참조 구현이다.
+본 프레임워크는 회사별 BM / 모델 구조를 HTML 인터랙티브 트리로 옮기기 위한 공통 구현 청사진이다.
 
 ---
 
@@ -46,9 +46,9 @@
 25. 한계와 주의점
 
 **부록**
-- A. 적용 사례 — 겟차 FY26
+- A. 적용 사례 — 케이카 2023
 - B. 구현 체크리스트
-- C. 겟차 참조 파일 구조
+- C. HTML 파일 구조
 
 ---
 
@@ -201,9 +201,9 @@ Case A의 분석 문서와 동일한 체계이되, 엑셀 셀 참조 대신 **�
 |------|--------|--------|
 | SaaS | 신규가입 - 이탈 = 순증 → 누적 구독자 | ARPU (플랜별 가중평균) |
 | 커머스 | Traffic × 전환율 = 주문건수 | AOV |
-| 렌탈/리스 | 신규투입 - 만료 = 누적 Fleet | 연차별 렌트료 |
+| 중고차 유통 | 시장판매대수 × 점유율 = 판매대수 | 차급별 ASP |
 | 제조업 | CAPA × 가동률 = 출하량 | 제품별 ASP |
-| 플랫폼 | 공급자 × 건당거래 = 총거래건수 | 건당거래액 × 수수료율 |
+| 마켓플레이스 | 공급자 × 건당거래 = 총거래건수 | 건당거래액 × 수수료율 |
 | 바이오 | 적응증별 환자 풀 × 침투율 | 약가 × 보험급여율 |
 | 콘텐츠 | 이용자 × 체류시간 = 인벤토리 | CPM / 구독료 |
 
@@ -229,7 +229,7 @@ Case A의 분석 문서와 동일한 체계이되, 엑셀 셀 참조 대신 **�
 
 매출과 비용이 공유하는 드라이버를 반드시 식별한다. 시뮬레이터에서 공유 변수 한 번 변경 → 매출·비용 양쪽이 동시 변동해야 모델의 일관성이 유지됨.
 
-예: Fleet 투입 대수를 바꾸면 렌트수익(매출)과 보험·감가상각(비용)이 동시 변동. 거래중개 전환율을 바꾸면 매출과 변동비가 동시에 반영.
+예: 중고차 판매대수를 바꾸면 차량 판매 매출, 재고자산원가, 판매보증비가 동시에 변동. 점유율을 바꾸면 매출과 판매대수 기반 비용이 함께 반영.
 
 ---
 
@@ -269,7 +269,7 @@ EV/EBITDA, PER, PSR. DCF와 병행 산출하여 교차 검증.
 
 # Part II — HTML 인터랙티브 트리 구현 프레임워크
 
-겟차 FY26 구현에서 추출한 업종 무관 프레임워크. 이 구조를 따르면 어떤 사업모델이든 인터랙티브 트리·시뮬레이터·시나리오 비교가 가능한 단일 HTML로 구현할 수 있다.
+업종 무관 프레임워크. 이 구조를 따르면 어떤 사업모델이든 인터랙티브 트리·시뮬레이터·시나리오 비교가 가능한 단일 HTML로 구현할 수 있다.
 
 ## 8. 모듈 구성
 
@@ -314,8 +314,9 @@ const D = {
 
 ```js
 const INPUT_KEYS = new Set([
-  'traffic', 'sp_new', 'gn_new',
-  'lr_rate', 'lr_cvr', 'lr_p',
+  'ecom_suv_market', 'ecom_suv_share', 'ecom_suv_asp',
+  'branch_suv_market', 'branch_suv_share', 'branch_suv_asp',
+  'unit_cost', 'warranty_per_unit', 'wacc', 'terminal_growth',
   // ... 슬라이더로 조정 가능한 모든 가정변수
 ]);
 ```
@@ -334,8 +335,9 @@ const YRS = ['2025','2026','2027','2028','2029','2030','2031'];
 
 ```js
 const DEFAULTS_S = {
-  traffic: [3640201, 6270900, ...],
-  sp_new:  [0, 30, 120, ...],
+  ecom_suv_market: [10000, 10500, ...],
+  ecom_suv_share: [0.03, 0.032, ...],
+  ecom_suv_asp: [22000, 22500, ...],
   ...
 };
 let SV = {}; for (let k in DEFAULTS_S) SV[k] = DEFAULTS_S[k].slice();
@@ -381,24 +383,24 @@ function DR(id, label, data, extras) {...}
 ### 10.2 트리 정의 패턴
 
 ```js
-const TREE = N('root', 'Total Traffic', 'APP+web 합산', ..., 'traffic', [
-  N('rev', '매출 합계', '5개 BM', ..., 'rev', [
-    N('rental', '차량대여', '특화+일반', ..., 'rental', [
-      N('sp', '특화모델', '렌트+중고', ..., 'sp', [
-        N('sp_rent', '렌트수익', 'Σ(빈티지×렌트료)', ..., 'sp_rent', [
-          N('sp_fleet_g', 'Fleet 운용', '신규·만료·누계', ..., 'sp_fleet', [
-            DR('sp_new', '신규 투입 (대)', 'sp_new'),
-            DR('sp_exp', '만료 반납 (대)', 'sp_exp'),
-            DR('sp_fleet2', 'Fleet 누계 (대)', 'sp_fleet'),
-          ]),
-          ...
+const TREE = N('root', 'KCar Enterprise Value', 'DCF 기준 주주가치', ..., 'equity_value', [
+  N('rev', '매출 합계', '중고차+경매+렌터카+기타', ..., 'total_sales', [
+    N('used_car', '중고차 판매', '이커머스+지점내방', ..., 'used_car_sales', [
+      N('ecom', '이커머스 중고차', '차급별 Q×P', ..., 'ecom_sales', [
+        N('ecom_suv', 'SUV', '판매대수×ASP', ..., 'ecom_suv_sales', [
+          DR('ecom_suv_market', '시장판매대수 (대)', 'ecom_suv_market'),
+          DR('ecom_suv_share', '케이카 점유율 (%)', 'ecom_suv_share'),
+          DR('ecom_suv_asp', '평균판매가격 (천원)', 'ecom_suv_asp'),
         ]),
+        ...
       ]),
+      N('branch', '지점내방 중고차', '차급별 Q×P', ..., 'branch_sales', [...]),
     ]),
-    // 거래중개, 플랫폼, 중고차, 기타
+    N('auction', '경매', '상품+용역', ..., 'auction_sales', [...]),
+    N('rental', '렌터카', '매각+장기렌트', ..., 'rental_sales', [...]),
   ]),
-  N('cost', '비용 합계', '변동+고정+이자', ..., 'total_cost', [...]),
-  N('profit', '영업이익', '매출−비용', ..., 'op_profit', []),
+  N('cost', '비용 합계', '원가+보증+변동비+인건비', ..., 'total_cost', [...]),
+  N('fcff', 'FCFF', 'EBIT(1-t)+D&A-CapEx-ΔNWC', ..., 'fcff', []),
 ]);
 ```
 
@@ -407,7 +409,7 @@ const TREE = N('root', 'Total Traffic', 'APP+web 합산', ..., 'traffic', [
 | 규칙 | 이유 |
 |------|------|
 | root는 단일 — 매출/비용/이익이 자식 | Canvas 좌→우 단일 진행 방향 |
-| 같은 데이터 키가 여러 노드 참조 가능 | 매출-비용 교차 참조 (Fleet, 전환건수) |
+| 같은 데이터 키가 여러 노드 참조 가능 | 매출-비용 교차 참조 (판매대수, 전환건수) |
 | 드라이버 노드는 더 이상 분해 불가 | 가정변수 또는 직접 계산 결과 |
 | `sub`에 수식을 텍스트로 명시 | 사람이 트리만 봐도 로직 추적 가능 |
 | 색상은 BM별로 묶음 | 시각적 그루핑 (legend와 일치) |
@@ -666,27 +668,27 @@ function simCalc() {
   
   // (a) Actuals 보존 — 수식 재현 불가 항목의 기본값
   const A = {
-    sp_rent:[0, 630000000, ...],  // 엑셀 원본 실제값
+    ecom_sales:[120000, 150000, ...],  // 엑셀 원본 실제값
     ...
   };
   
   // (b) 정확 재계산 — 수식이 명확한 항목
-  let sf = Array(7).fill(0);
+  let ecom_suv_units = Array(7).fill(0);
   for (let i = 0; i < 7; i++) {
-    se[i] = i >= 4 ? v.sp_new[i-4] : 0;        // 4년 후 만료
-    sf[i] = (i>0 ? sf[i-1] : 0) + v.sp_new[i] - se[i];  // 누계
+    ecom_suv_units[i] = v.ecom_suv_market[i] * v.ecom_suv_share[i];
   }
-  r.sp_fleet = sf;
+  r.ecom_suv_sales = ecom_suv_units.map((q, i) => q * v.ecom_suv_asp[i]);
   
-  // (c) Proportional Scaling — 월별 빈티지 등 근사 필요 항목
-  r.sp_rent = sf.map((_, i) => {
-    let fRatio = fleetAvg(sf, i) / defFleetAvg_sp(i);          // Fleet 비율
-    let rRatio = avgRent(v.sp_rent1[i], ...) / defSpAvgRent;    // 렌트료 비율
-    return A.sp_rent[i] * fRatio * rRatio;                       // 실적값 × 비율
+  // (c) Proportional Scaling — 상세 차급을 단순화한 항목
+  r.ecom_sales = r.ecom_suv_sales.map((_, i) => {
+    let qRatio = totalUnits(i) / defaultTotalUnits(i);      // 판매대수 비율
+    let pRatio = avgAsp(i) / defaultAvgAsp(i);              // ASP 비율
+    return A.ecom_sales[i] * qRatio * pRatio;               // 실적값 × 비율
   });
   
   // (d) 교차 참조 — 매출 결과를 비용에 다시 사용
-  r.car_vc = sf.map((_, i) => r.car[i] * v.car_cost_rate[i]);
+  r.inventory_cost = totalUnits.map((q, i) => q * v.unit_cost[i]);
+  r.warranty_cost = totalUnits.map((q, i) => q * v.warranty_per_unit[i]);
   
   // (e) D 객체 갱신 — UI가 자동으로 새 값을 반영
   for (let k in r) if (D[k]) D[k].v = r[k];
@@ -697,8 +699,8 @@ function simCalc() {
 
 | 방식 | 적용 대상 | 예시 |
 |------|---------|------|
-| **정확 재계산** | 수식이 닫힌 형태 | Fleet 누계, Q × P, 차입금 × 이자율 |
-| **Proportional Scaling** | 월별/빈티지 등 누적 효과 | 렌트수익, 감가상각, 보험료 |
+| **정확 재계산** | 수식이 닫힌 형태 | Q × P, 판매대수 × 단위원가, 차입금 × 이자율 |
+| **Proportional Scaling** | 세부 분해를 단순화한 항목 | 상세 차급 매출, 감가상각, 보험료 |
 | **외삽 (실적값 + 비율)** | 인건비 등 인원·단가 곱 | f_labor = A.f_labor × (인원비) × (단가비) |
 
 ### 14.3 Proportional Scaling 공식
@@ -713,7 +715,7 @@ where input_ratio_j = SV[input_j][i] / DEFAULTS_S[input_j][i]
 - 입력값이 2배 되면 결과도 2배 (선형 가정)
 - 여러 입력의 효과는 곱셈으로 합산
 
-**한계**: 비선형 효과는 표현 못함. Fleet이 2배여도 렌트수익은 빈티지 구성이 바뀌어 정확히 2배가 아닐 수 있음. 그래서 **수식이 닫힌 항목은 정확 재계산을 우선**하고, Scaling은 폴백.
+**한계**: 비선형 효과는 표현 못함. 판매대수가 2배여도 차급 믹스와 ASP가 바뀌면 매출이 정확히 2배가 아닐 수 있음. 그래서 **수식이 닫힌 항목은 정확 재계산을 우선**하고, Scaling은 폴백.
 
 ### 14.4 갱신 체인
 
@@ -753,7 +755,7 @@ D = {
 
 INPUT_KEYS = new Set(['new_signups', 'churn', 'arpu', 'cac', 'gross_margin', ...]);
 
-// simCalc — Fleet 로직을 구독자 누계로 대체
+// simCalc — 판매대수 누계 로직을 구독자 누계로 대체
 for (let i = 0; i < N; i++) {
   cum_subs[i] = (i>0 ? cum_subs[i-1] : 0) * (1 - churn[i]) + new_signups[i];
 }
@@ -770,7 +772,7 @@ P = ASP (제품별 가중평균)
 고정비 = 인원 × 인당단가 + 임차 + ...
 ```
 
-`Fleet`를 `CAPA`, `Fleet 신규투입`을 `CAPA 증설`로 대체하면 같은 구조.
+중고차 모델의 `판매대수`를 제조업의 `출하량`, `차급별 ASP`를 `제품별 ASP`로 대체하면 같은 구조.
 
 ### 15.3 커머스 (퍼널 기반)
 
@@ -779,17 +781,17 @@ Traffic → 전환율 → 주문건수(Q) × AOV(P) = GMV
 GMV × 테이크레이트 = 매출
 ```
 
-겟차의 `lr_leads / lr_rate / lr_cvr / lr_p` 4단 퍼널과 동일.
+`Traffic / Rate / Conversion / Price` 형태의 4단 퍼널로 일반화 가능.
 
 ### 15.4 매핑 원칙
 
-| 겟차 | 일반화 |
+| 예시 구조 | 일반화 |
 |------|--------|
-| BM = 차량대여/거래중개/플랫폼/중고차/기타 | 사업부 또는 제품군 단위 |
-| Q = Fleet, P = 빈티지별 렌트료 | Q×P 분해의 업종 특화 |
-| 월별 빈티지 → Proportional Scaling | 누적 효과 있는 모든 항목 |
-| Traffic → 상담Rate → 전환율 | n단 퍼널 일반화 가능 |
-| Fleet ↔ 보험·감가 교차 참조 | 매출-비용 공유 드라이버 |
+| BM = 이커머스/지점내방/경매/렌터카/기타 | 사업부 또는 제품군 단위 |
+| Q = 차급별 판매대수, P = 차급별 ASP | Q×P 분해의 업종 특화 |
+| 상세 차급 믹스 → Proportional Scaling | 세부 분해를 단순화한 모든 항목 |
+| 시장규모 → 점유율 → 판매대수 | n단 드라이버 구조 일반화 가능 |
+| 판매대수 ↔ 재고자산원가·보증비 | 매출-비용 공유 드라이버 |
 
 ---
 
@@ -817,25 +819,25 @@ HTML 트리는 IR 역할. 엑셀 생성기는 다음 형식의 JSON을 입력으
   "years": ["2025", ..., "2031"],
   "nodes": [
     {
-      "id": "sp_new",
-      "label": "특화 신규투입",
+      "id": "ecom_suv_market",
+      "label": "이커머스 SUV 시장판매대수",
       "unit": "대",
       "is_input": true,
-      "values": [0, 30, 120, 180, 390, 600, 720],
+      "values": [10000, 10500, 11000, 11600, 12200, 12800, 13400],
       "formula": null,
-      "source": "사업계획 가정",
+      "source": "시장 리서치 / 과거 실적",
       "dependencies": [],
-      "parent": "sp_fleet_g"
+      "parent": "ecom_suv"
     },
     {
-      "id": "sp_fleet",
-      "label": "특화 Fleet 누계",
+      "id": "ecom_suv_sales",
+      "label": "이커머스 SUV 매출",
       "unit": "대",
       "is_input": false,
       "values": [...],
-      "formula": "PREV(sp_fleet) + sp_new - sp_exp",
-      "dependencies": ["sp_new", "sp_exp"],
-      "parent": "sp_fleet_g"
+      "formula": "ecom_suv_market * ecom_suv_share * ecom_suv_asp",
+      "dependencies": ["ecom_suv_market", "ecom_suv_share", "ecom_suv_asp"],
+      "parent": "ecom_suv"
     }
   ]
 }
@@ -882,7 +884,7 @@ HTML 트리는 IR 역할. 엑셀 생성기는 다음 형식의 JSON을 입력으
 ### 20.2 1-way / 2-way 민감도
 
 - 1-way: 변수 하나를 ±20% 변동 시 밸류에이션 변화 — tornado chart
-- 2-way: 두 변수 매트릭스 (WACC × g, Fleet × 전환율 등)
+- 2-way: 두 변수 매트릭스 (WACC × g, 점유율 × ASP 등)
 
 ### 20.3 몬테카를로 (선택)
 
@@ -1046,24 +1048,17 @@ FAST vs IB vs 회사 내규. 어느 표준이든 **일관성**이 핵심.
 
 # 부록
 
-## A. 적용 사례 — 겟차 FY26
+## A. 적용 사례 — 케이카 2023
 
-방법론 적용 첫 사례 (Case A 경로).
+완성된 Excel 모델을 먼저 분석한 뒤 BM / 모델 구조를 언어화하는 Case A 경로.
 
-- **원본**: 엑셀 20개 시트, 2025년 실적 + 2026~2031년 추정
-- **HTML 산출물**: 단일 파일 (~92KB, 1500줄)
-- **매출 BM**: 차량대여 / 거래중개 / 플랫폼 / 중고차 / 기타 (5개)
-- **비용 체계**: 변동원가(BM별) / 고정비(7계정) / 이자비용(2계정)
-- **가정변수**: 매출 30개 + 비용 25개 = 총 55개
-- **소요시간**: 약 1시간 (분석 + 트리 생성 + 정합성 레퍼)
+- **원본**: `(Financial model) 케이카_2023.xlsx`
+- **BM 구조 문서**: [`../html-examples/kcar-2023/bm_model_structure.md`](../html-examples/kcar-2023/bm_model_structure.md)
+- **매출 BM**: 이커머스 중고차 / 지점내방 중고차 / 경매 / 렌터카 / 용역·기타
+- **핵심 드라이버**: 차급별 시장판매대수, 케이카 점유율, 평균판매가격, 1대당 원가, 보증비, 인건비 생산성, CapEx, NWC, WACC
+- **모델 흐름**: Sales → Cost / Labor / CapEx / NWC → FCFF → DCF → Equity Value
 
-**방법론이 드러낸 인사이트**
-
-- **매출 Mix 전환**: 25년 거래중개 59% → 31년 차량대여 63%. 플랫폼 사업에서 Fleet 운용 사업으로 밸류 드라이버가 완전 전환되는 모델.
-- **Fleet = 매출과 비용의 공유 드라이버**: 31년 Fleet 8,940대 가정 하에 렌트수익 1,589억, 감가상각 858억, 이자 93억. 매출-비용 교차 참조의 전형 사례. 시뮬레이터에서 Fleet를 한 번 조정하면 매출·비용·B/S가 동시에 움직임.
-- **영업레버리지**: 고정비 59억→161억(2.7배) 증가하는 동안 매출 257억→3,075억(12배) 증가. 영업이익률 -3.6% → 19.8%로 급개선.
-
-방법론의 가치는 이런 인사이트를 **트리 분해와 시뮬레이션에서 자연스럽게 드러나도록** 만드는 것이다. 엑셀만 봐서는 보이지 않던 구조가 분해와 교차 참조로 가시화됨.
+방법론의 가치는 원본 Excel에 숨어 있는 BM, 드라이버, 교차 참조를 **언어화 → HTML 구조화 → Excel 재구현** 순서로 드러내는 것이다. Excel만 봐서는 보이지 않던 구조가 트리 분해와 시뮬레이션에서 가시화됨.
 
 ---
 
@@ -1085,9 +1080,9 @@ FAST vs IB vs 회사 내규. 어느 표준이든 **일관성**이 핵심.
 
 ---
 
-## C. 겟차 참조 파일 구조
+## C. HTML 파일 구조
 
-`/Users/taeminyang/Downloads/getcha_tree_final_1.html` (총 1500줄, 92KB).
+`template.html`을 회사별 HTML 예시로 복사해 채울 때의 권장 구조.
 
 | 라인 | 내용 |
 |------|------|

@@ -1,81 +1,122 @@
-# Financial Modeling — Interactive Tree → Excel
+﻿# Financial Modeling with LLM, HTML, and Excel
 
-비상장 기업 추정 모델링 방법론과 구현 프레임워크.
+Claude나 Codex 같은 LLM을 활용해 비상장 기업 재무모델을 만드는 강의 교안 repo입니다.
 
-HTML 인터랙티브 트리로 매출·비용·이익을 구조화하고, 그 구조를 결정론적으로 엑셀 모델로 변환하는 분석 체계.
-
-뮤렉스파트너스 · 2026.03
+핵심 메시지는 단순히 “AI로 Excel을 빨리 만든다”가 아닙니다. 모델링 전에 사업모델을 언어로 정리하고, LLM과 대화하면서 드라이버 구조를 잡고, HTML 인터랙티브 트리로 머릿속 모델을 시각화한 뒤, 그 구조를 기반으로 Excel 모델을 만드는 작업법을 다룹니다.
 
 ---
 
-## 디렉토리 구조
+## Repo Structure
 
-```
+```text
 .
-├── README.md                              # 본 파일
-├── CLAUDE.md                              # Claude·개발자 작업 지침 (DS 준수 강제)
-├── docs/
-│   ├── modeling_framework.md              # 방법론 + 구현 프레임워크 통합 문서
-│   └── design_system.md                   # 디자인 시스템 가이드
-├── ds/
-│   └── tokens.js                          # DS 토큰 (단일 진실 소스)
-├── framework/
-│   ├── template.html                      # HTML 인터랙티브 트리 스켈레톤 (DS 적용)
-│   └── README.md                          # 템플릿 사용법
-├── examples/
-│   └── getcha-fy26/
-│       ├── index.html                     # 겟차 FY26 적용 사례 (참조 구현, DS 미적용)
-│       └── README.md                      # 사례 설명
-├── samples/                               # 독점/민감 자료 (gitignored)
-└── .gitignore
+├── course/
+│   ├── lecture_contents.md        # 강의 콘텐츠 원본. 추후 HTML 슬라이드 변환의 source
+│   ├── course_guide.md            # 강의 운영용 가이드
+│   ├── templates/
+│   │   └── bm_brief.md            # BM 브리프 작성 템플릿
+│   └── slides-html/
+│       └── README.md              # 추후 생성할 HTML 슬라이드 위치
+├── html-framework/
+│   ├── template.html              # HTML 인터랙티브 트리 프레임워크
+│   ├── README.md                  # HTML 프레임워크 사용법
+│   └── html_modeling_framework.md # 모델링 방법론 + HTML 구현 규약
+├── excel-framework/
+│   ├── excel_modeling_framework.md # Excel 구현 시 모델링 가이드
+│   ├── build_excel.py             # IR JSON → Excel 변환 스크립트
+│   ├── requirements.txt
+│   └── README.md
+├── html-examples/
+│   ├── kcar-2023/
+│   │   └── bm_model_structure.md  # 케이카 2023 BM / 모델 구조
+│   └── worldvision-office/
+│       └── bm_model_structure.md  # 월드비전 사옥 BM / 모델 구조
+├── excel-examples/
+│   └── README.md                  # 추후 Excel 예시 산출물 위치
+├── design-guide/
+│   ├── design_system.md           # 디자인 시스템 가이드
+│   └── tokens.js                  # 디자인 토큰
+├── CLAUDE.md
+└── README.md
 ```
 
 ---
 
-## 빠른 시작
+## Workflow
 
-### 방법론·프레임워크 읽기
+```text
+BM Brief
+  ↓
+LLM과 대화하며 드라이버 구조화
+  ↓
+HTML Framework로 인터랙티브 트리 구현
+  ↓
+HTML Example로 검토와 시뮬레이션
+  ↓
+Excel Framework 규칙에 따라 Excel 모델 구현
+  ↓
+Excel Example 축적
+```
 
-[docs/modeling_framework.md](docs/modeling_framework.md) — 4부 구성.
-
-- Part I — 방법론 (Q×P 분해, 객관/주관, Case A/B, 매출·비용·B/S·밸류에이션)
-- Part II — HTML 구현 프레임워크 (데이터·트리·렌더링·UI·시뮬레이터·엔진)
-- Part III — 엑셀 모델 (IR JSON, 메타데이터, 표준 준수)
-- Part IV — 시나리오·검증·거버넌스 (LLM 자리, 라이브러리, 한계)
-
-### 디자인 시스템
-
-[docs/design_system.md](docs/design_system.md) — 시각 일관성을 위한 토큰·컴포넌트 규약. 토큰의 실제 값은 [ds/tokens.js](ds/tokens.js).
-
-### 새 회사에 적용하기
-
-1. `framework/template.html`를 복사
-2. 9개 블록을 회사 데이터로 채움 ([framework/README.md](framework/README.md) 참고)
-3. 브라우저에서 열어 검증
-4. (선택) 엑셀 모델로 변환 — Part III IR JSON 규약
-
-### 참조 구현 보기
-
-[examples/getcha-fy26/index.html](examples/getcha-fy26/index.html)를 브라우저에서 열기. 1,500줄·92KB의 완전한 적용 사례.
+HTML은 최종 산출물이 아니라 사고를 정리하는 중간 표현입니다. Excel은 최종 실행 모델이고, HTML은 그 전에 모델의 논리, 드라이버, 가정변수, 연결 구조를 눈으로 검토하는 작업대입니다.
 
 ---
 
-## 핵심 흐름
+## 강의 콘텐츠
 
-```
-[입력: 사업계획 엑셀  or  리서치 자료]
-   ↓ 분석 (LLM + 사람)
-[HTML 인터랙티브 트리 — 구조화·검토 레이어]
-   ↓ 사람 검토·디렉션
-[확정된 추정 구조: 드라이버·수식·가정변수]
-   ↓ 결정론적 변환
-[엑셀 모델 — 최종 산출물]
-```
+슬라이드 제작의 기준이 되는 강의 콘텐츠 원본:
 
-HTML이 단순 시각화가 아니라 **중간 표현(IR) 겸 검토 인터페이스**. 트리에서 확정된 구조가 엑셀의 청사진이 된다.
+- [course/lecture_contents.md](course/lecture_contents.md)
+
+운영용 강의안:
+
+- [course/course_guide.md](course/course_guide.md)
+
+BM 브리프 템플릿:
+
+- [course/templates/bm_brief.md](course/templates/bm_brief.md)
+
+HTML 슬라이드는 아직 만들지 않았고, 추후 [course/slides-html](course/slides-html)에 추가합니다.
 
 ---
 
-## 라이선스 / 사용
+## Frameworks
 
-내부 분석용. 외부 공유 시 협의 필요.
+HTML 프레임워크:
+
+- [html-framework/template.html](html-framework/template.html)
+- [html-framework/README.md](html-framework/README.md)
+
+Excel 프레임워크:
+
+- [excel-framework/excel_modeling_framework.md](excel-framework/excel_modeling_framework.md)
+- [excel-framework/build_excel.py](excel-framework/build_excel.py)
+
+디자인 가이드:
+
+- [design-guide/design_system.md](design-guide/design_system.md)
+- [design-guide/tokens.js](design-guide/tokens.js)
+
+---
+
+## Examples
+
+HTML 예시:
+
+- [html-examples/kcar-2023/bm_model_structure.md](html-examples/kcar-2023/bm_model_structure.md)
+- [html-examples/worldvision-office/bm_model_structure.md](html-examples/worldvision-office/bm_model_structure.md)
+
+Excel 예시는 추후 [excel-examples](excel-examples)에 추가합니다.
+
+---
+
+## 이 레포가 가르치는 것
+
+- LLM을 계산기가 아니라 사고 정리 파트너로 쓰는 법
+- BM 설명을 재무모델의 드라이버 구조로 바꾸는 법
+- Q × P, 퍼널, 코호트, Fleet, 이용률 같은 드라이버를 트리로 분해하는 법
+- HTML을 통해 모델의 논리를 먼저 합의한 뒤 Excel로 옮기는 법
+- Excel 구현 시 구조, 수식, 검증 기준을 유지하는 법
+- 투자심사, 내부 검토, 자문 모델링에서 설명 가능한 모델을 만드는 법
+
+민감한 회사 자료나 독점 모델은 이 repo에 커밋하지 않습니다.

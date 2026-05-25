@@ -1,13 +1,13 @@
-// ============================================================
+﻿// ============================================================
 // Financial Modeling Design System — Tokens
 //
 // 본 레포의 HTML 산출물·문서에서 공통으로 사용하는 시각 토큰.
-// 자세한 사용 규칙: docs/design_system.md
+// 자세한 사용 규칙: design-guide/design_system.md
 //
 // 사용:
-//   - HTML 산출물(framework/template.html 등): CSS 인라인에 hex 값 직접 사용,
+//   - HTML 산출물(html-framework/template.html 등): CSS 인라인에 hex 값 직접 사용,
 //     주석으로 토큰 이름 표기 (정적 산출물이라 import 불가)
-//   - 향후 React/Vite 프로젝트가 추가되면: `import { colors } from './ds/tokens'`
+//   - 향후 React/Vite 프로젝트가 추가되면: `import { colors } from './design-guide/tokens'`
 // ============================================================
 
 // ─── Colors: Primary Scale ──────────────────────────────────
