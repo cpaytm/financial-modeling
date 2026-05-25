@@ -17,22 +17,21 @@ Claude나 Codex 같은 LLM을 활용해 비상장 기업 재무모델을 만드�
 │   │   └── bm_brief.md            # BM 브리프 작성 템플릿
 │   └── slides-html/
 │       └── README.md              # 추후 생성할 HTML 슬라이드 위치
-├── html-framework/
+├── framework/
+│   ├── html_framework.md          # HTML 프레임워크 사용법
 │   ├── template.html              # HTML 인터랙티브 트리 프레임워크
-│   ├── README.md                  # HTML 프레임워크 사용법
-│   └── html_modeling_framework.md # 모델링 방법론 + HTML 구현 규약
-├── excel-framework/
+│   ├── html_modeling_framework.md # 모델링 방법론 + HTML 구현 규약
+│   ├── excel_framework.md         # Excel 프레임워크 사용법
 │   ├── excel_modeling_framework.md # Excel 구현 시 모델링 가이드
-│   ├── build_excel.py             # IR JSON → Excel 변환 스크립트
-│   ├── requirements.txt
-│   └── README.md
-├── html-examples/
-│   ├── kcar-2023/
-│   │   └── bm_model_structure.md  # 케이카 2023 BM / 모델 구조
-│   └── worldvision-office/
-│       └── bm_model_structure.md  # 월드비전 사옥 BM / 모델 구조
-├── excel-examples/
-│   └── README.md                  # 추후 Excel 예시 산출물 위치
+│   ├── build_excel.py             # BM/HTML 구조 → Excel 생성 스크립트
+│   └── requirements.txt
+├── examples/
+│   └── kcar-2023/
+│       ├── kcar_bm_model_structure.md  # 케이카 2023 BM / 모델 구조
+│       ├── kcar_2023_financial_model.html # 케이카 인터랙티브 HTML 모델
+│       ├── kcar_2023_ir.json           # HTML 모델 IR export
+│       ├── kcar_2023_financial_model.xlsx # 수식 기반 Excel 모델
+│       └── (Financial model) 케이카_2023.xlsx
 ├── design-guide/
 │   ├── design_system.md           # 디자인 시스템 가이드
 │   └── tokens.js                  # 디자인 토큰
@@ -58,7 +57,7 @@ Excel Framework 규칙에 따라 Excel 모델 구현
 Excel Example 축적
 ```
 
-HTML은 최종 산출물이 아니라 사고를 정리하는 중간 표현입니다. Excel은 최종 실행 모델이고, HTML은 그 전에 모델의 논리, 드라이버, 가정변수, 연결 구조를 눈으로 검토하는 작업대입니다.
+HTML은 최종 산출물이 아니라 Excel 모델을 만들기 전에 구조를 검토하는 작업대입니다. Excel은 최종 실행 모델이고, HTML은 그 전에 모델의 논리, 드라이버, 가정변수, 연결 구조를 코워커/LLM과 맞추는 설계서입니다. 보조 JSON은 필요할 때만 쓰는 자동화 파일입니다.
 
 ---
 
@@ -84,13 +83,14 @@ HTML 슬라이드는 아직 만들지 않았고, 추후 [course/slides-html](cou
 
 HTML 프레임워크:
 
-- [html-framework/template.html](html-framework/template.html)
-- [html-framework/README.md](html-framework/README.md)
+- [framework/template.html](framework/template.html)
+- [framework/html_framework.md](framework/html_framework.md)
 
 Excel 프레임워크:
 
-- [excel-framework/excel_modeling_framework.md](excel-framework/excel_modeling_framework.md)
-- [excel-framework/build_excel.py](excel-framework/build_excel.py)
+- [framework/excel_framework.md](framework/excel_framework.md)
+- [framework/excel_modeling_framework.md](framework/excel_modeling_framework.md)
+- [framework/build_excel.py](framework/build_excel.py)
 
 디자인 가이드:
 
@@ -101,12 +101,11 @@ Excel 프레임워크:
 
 ## Examples
 
-HTML 예시:
+프로젝트별 예시:
 
-- [html-examples/kcar-2023/bm_model_structure.md](html-examples/kcar-2023/bm_model_structure.md)
-- [html-examples/worldvision-office/bm_model_structure.md](html-examples/worldvision-office/bm_model_structure.md)
-
-Excel 예시는 추후 [excel-examples](excel-examples)에 추가합니다.
+- [examples/kcar-2023/kcar_bm_model_structure.md](examples/kcar-2023/kcar_bm_model_structure.md)
+- [examples/kcar-2023/kcar_2023_financial_model.html](examples/kcar-2023/kcar_2023_financial_model.html)
+- [examples/kcar-2023/kcar_2023_financial_model.xlsx](examples/kcar-2023/kcar_2023_financial_model.xlsx)
 
 ---
 

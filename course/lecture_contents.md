@@ -547,7 +547,7 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
 
 ## 14. Framework HTML의 9개 블록
 
-- `html-framework/template.html`을 채우는 9개 블록
+- `framework/template.html`을 채우는 9개 블록
 
 | 번호 | 블록 | 의미 |
 |---|---|---|
@@ -594,7 +594,6 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
 ## Part 5. 실습 예시
 
 - 케이카 2023 완성 모델 분석 기반 실습 진행
-- 월드비전 Excel 모델 분석으로 BM/모델 구조 보완
 - LLM과 대화하며 HTML Framework 업데이트
 - HTML 구조 합의 후 Excel 모델로 전환
 
@@ -622,42 +621,18 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
   - WACC와 Terminal Growth
 
 - 예시 BM / 모델 구조
-  - [html-examples/kcar-2023/bm_model_structure.md](../html-examples/kcar-2023/bm_model_structure.md)
+  - [examples/kcar-2023/kcar_bm_model_structure.md](../examples/kcar-2023/kcar_bm_model_structure.md)
 
 ---
 
-## 17. 예시 2: 월드비전 Excel 모델로 BM/모델 구조 보완
-
-- 입력 파일
-  - `월드비전_여의도사옥_재무모델 20190619.xlsx`
-
-- LLM이 분석할 수 있는 항목
-  - 시트 목록과 역할
-  - Control Panel의 핵심 입력값
-  - Rent Roll 기반 임대수익 구조
-  - 개발비, 금융비용, 운영비, 매각가치 구조
-  - 손익계산서, 현금흐름표, 투자자 배당 흐름
-
-- 단순화 산출물
-  - [html-examples/worldvision-office/bm_model_structure.md](../html-examples/worldvision-office/bm_model_structure.md)
-
-- 강의 메시지
-  - 사업모델 언어화는 항상 필요함
-  - LLM은 기존 Excel 모델도 입력으로 받아 그 언어화를 보완할 수 있음
-  - 복잡한 Workbook을 바로 수정하기보다, 먼저 BM/모델구조 MD로 요약
-  - 이후 이 구조를 HTML Framework의 `D`, `TREE`, `simCalc`, `SIM_SECS`로 옮길 수 있음
-
----
-
-## 18. 실습 진행 장면
+## 17. 실습 진행 장면
 
 - 실습 순서
   - 사람이 먼저 사업모델을 언어로 정리
   - 케이카처럼 기존 Excel 모델을 LLM이 분석해 BM/모델 구조를 언어화 가능
-  - 월드비전처럼 다른 유형의 기존 Excel 모델도 같은 방식으로 구조 보완 가능
   - Claude 또는 Codex에게 매출원/비용/자금조달 구조 분해 요청
   - 사람이 잘못된 분해나 누락 드라이버 지적
-  - LLM에게 `html-framework/template.html`의 `D`와 `TREE` 업데이트 요청
+  - LLM에게 `framework/template.html`의 `D`와 `TREE` 업데이트 요청
   - HTML을 열어 트리 구조 확인
   - 비용과 공유 드라이버 추가
   - 시뮬레이터 변수 선정

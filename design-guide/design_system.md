@@ -37,7 +37,7 @@
 | `SidebarLayout` | Docs 상세 | 좌측 LNB + 본문 |
 | `ArticleLayout` | Blog 상세 | 좌측 TOC (sticky) + 본문 |
 
-현재 레포의 인터랙티브 트리(`html-framework/template.html`)는 별도 카테고리 — Canvas 기반 단일 페이지 앱.
+현재 레포의 인터랙티브 트리(`framework/template.html`)는 별도 카테고리 — Canvas 기반 단일 페이지 앱.
 
 ---
 
@@ -273,6 +273,6 @@ variants: primary | outline | text
 
 | 산출물 | 적용 여부 | 비고 |
 |--------|----------|------|
-| [`html-framework/template.html`](../html-framework/template.html) | ✅ 적용 | Outfit·Pretendard 폰트, primary.500 강조색, light surfaces |
-| `html-examples/*/index.html` | 신규 적용 대상 | 새 HTML 예시는 본 DS를 기준으로 작성 |
+| [`framework/template.html`](../framework/template.html) | ✅ 적용 | Outfit·Pretendard 폰트, primary.500 강조색, light surfaces |
+| `examples/*/*.html` | 신규 적용 대상 | 새 HTML 예시는 본 DS를 기준으로 작성 |
 | (향후) 마케팅 페이지·문서 사이트 | — | 본 DS 100% 준수 |

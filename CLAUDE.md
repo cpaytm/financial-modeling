@@ -22,8 +22,8 @@
 
 ### 새 HTML 산출물 만들 때
 
-1. [html-framework/template.html](html-framework/template.html)을 복사해 출발점으로 사용
-2. 9개 블록만 회사 데이터로 채움 ([html-framework/README.md](html-framework/README.md) 참조)
+1. [framework/template.html](framework/template.html)을 복사해 출발점으로 사용
+2. `YRS`, `HIST_N`, `D`만 회사 데이터로 채움 ([framework/html_framework.md](framework/html_framework.md) 참조)
 3. 엔진·UI 코드는 손대지 않음
 4. 색은 토큰값을 hex로 인라인하되 주석으로 토큰 이름 표기:
    ```js
@@ -38,7 +38,7 @@
 
 ## 방법론
 
-추정 모델링 분석 작업 시 [html-framework/html_modeling_framework.md](html-framework/html_modeling_framework.md) Part I~II 준수.
+추정 모델링 분석 작업 시 [framework/html_modeling_framework.md](framework/html_modeling_framework.md) Part I~II 준수.
 
 - **Q × P 재귀 분해** (§4)
 - **객관/주관 구분** (§4.3) — 주관적 요소는 상한/하한 먼저 설정
@@ -49,7 +49,7 @@
 
 ## 확률성 격리 (LLM 사용 시)
 
-[html-framework/html_modeling_framework.md](html-framework/html_modeling_framework.md) §2.3 / §12.
+[framework/html_modeling_framework.md](framework/html_modeling_framework.md) §2.3 / §12.
 
 - LLM은 **비정형 → 정형 변환만**
 - 숫자 계산·합계·할인·회계 규칙 적용은 **결정론적 코드**
@@ -60,8 +60,8 @@
 ## 디렉토리 규칙
 
 - `samples/` — 독점/민감 자료. **절대 git에 커밋 금지** (.gitignore에 등록됨). 새 민감 자료는 여기로 이동.
-- `html-examples/` — 회사별 BM / 모델 구조와 HTML 예시를 축적. 민감 자료는 커밋 금지.
-- `html-framework/template.html` — DS 적용된 스켈레톤. 새 산출물의 출발점.
+- `examples/` — 회사별 BM / 모델 구조와 HTML 예시를 축적. 민감 자료는 커밋 금지.
+- `framework/template.html` — DS 적용된 스켈레톤. 새 산출물의 출발점.
 
 ---
 
@@ -72,4 +72,4 @@
 - [ ] Pretendard / Outfit만 썼는가? (다른 폰트 0건)
 - [ ] 비용을 빨강으로 칠하지 않았는가? (neutral grey)
 - [ ] 새 컴포넌트가 필요하면 임의 제작 대신 요청했는가?
-- [ ] 엑셀 산출물이면 메타데이터 임베드했는가? ([html_modeling_framework.md](html-framework/html_modeling_framework.md) §18)
+- [ ] 엑셀 산출물이면 메타데이터 임베드했는가? ([html_modeling_framework.md](framework/html_modeling_framework.md) §18)

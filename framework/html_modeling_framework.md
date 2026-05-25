@@ -1,10 +1,10 @@
 ﻿# 비상장 기업 추정 모델링 방법론 및 구현 프레임워크
 
-**HTML 인터랙티브 트리로 구조화한 뒤 엑셀 모델로 실행하는 분석 체계, 그리고 그 HTML 레이어의 구현 청사진.**
+**HTML 인터랙티브 트리로 모델 구조를 검토한 뒤, 코워커/LLM이 Excel 재무모델로 구현할 수 있게 만드는 분석 체계와 구현 청사진.**
 
 뮤렉스파트너스 · 2026.03
 
-본 문서는 분석 방법론(Part I)과 그 산출물인 HTML 인터랙티브 트리의 구현 프레임워크(Part II), 최종 산출물인 엑셀 모델의 변환 규약(Part III), 그리고 운영·거버넌스(Part IV)로 구성된다. 서비스 구현 사양이 아니라 분석가가 따라야 할 작업 체계·산출물 구조·구현 청사진을 정리한 것이다.
+본 문서는 분석 방법론(Part I), HTML 인터랙티브 트리의 구현 프레임워크(Part II), 최종 산출물인 Excel 모델의 구현 규약(Part III), 그리고 운영·거버넌스(Part IV)로 구성된다. 서비스 구현 사양이 아니라 분석가와 코워커/LLM이 같은 구조를 보고 Excel 모델을 만들기 위한 작업 체계·산출물 구조·구현 청사진을 정리한 것이다.
 
 본 프레임워크는 회사별 BM / 모델 구조를 HTML 인터랙티브 트리로 옮기기 위한 공통 구현 청사진이다.
 
@@ -33,7 +33,7 @@
 
 **Part III — 엑셀 모델 (최종 산출물)**
 16. 표준 준수
-17. 생성 방식과 IR JSON
+17. Excel 구현 방식과 보조 IR
 18. 메타데이터 임베드
 19. 양방향 동기화의 한계
 
@@ -81,10 +81,10 @@
 
 ### 2.2 두 산출물의 역할
 
-- **HTML 인터랙티브 트리**: 추정 로직의 시각적 분해, 가정변수 노출, 시뮬레이터, 객관/주관 구분, 시나리오 케이스 — **구조화·검토의 자리**
+- **HTML 인터랙티브 트리**: 추정 로직의 시각적 분해, 가정변수 노출, 시뮬레이터, 객관/주관 구분, 시나리오 케이스 — **Excel 구현 전에 구조를 검토하는 자리**
 - **엑셀 모델**: 회계·감사·실무의 표준 산출물. 표준 템플릿(FAST 등)에 따라 시트 구조·수식·명명범위·검증 셀이 결정론적으로 생성됨 — **최종 산출물의 자리**
 
-HTML이 단순 시각화가 아니라 **중간 표현(IR) 겸 검토 인터페이스** 역할을 한다. 트리에서 확정된 구조가 엑셀의 청사진이 된다. 시각화→실행의 순서이지 그 반대가 아니다.
+HTML은 단순 시각화가 아니라 **Excel 모델링 지시서 겸 검토 인터페이스** 역할을 한다. 트리에서 확정된 구조가 Excel의 시트, 행, 수식, 가정변수로 옮겨진다. JSON/IR은 자동화가 필요할 때 쓰는 보조 형식이며, 핵심 목표는 수식이 들어간 Excel 모델을 정확히 구현하는 것이다.
 
 ### 2.3 확률성 격리 원칙
 
@@ -276,8 +276,8 @@ EV/EBITDA, PER, PSR. DCF와 병행 산출하여 교차 검증.
 단일 HTML 파일 내 5개 모듈.
 
 ```
-┌─ 데이터 계층 (Data Layer)            D, INPUT_KEYS, YRS, DEFAULTS_S
-├─ 트리 구조 (Tree Schema)             TREE = N(...) / DR(...)
+┌─ 데이터 계층 (Data Layer)            YRS, HIST_N, D
+├─ 파생 인덱스                         INPUT_KEYS, TREE, DEFAULTS_S, SIM_SECS
 ├─ 렌더링 엔진 (Canvas)                doLayout, drawNode, drawConns, hitTest, pan/zoom/drag
 ├─ UI 컴포넌트                         차트 팝업 · 브릿지 · 재무제표 · 가정변수 일람
 └─ 시뮬레이션                          simCalc, SV/SR, SIM_SECS 슬라이더, _cases 관리
@@ -296,8 +296,12 @@ const D = {
   variable_key: {
     v:    [v_y1, v_y2, ..., v_yN],  // 연도별 값 (필수)
     u:    '원' | '명' | '대' | '%',   // 단위 표기 (필수)
+    parent: 'parent_key' | null,       // 트리 parent (필수)
+    type: 'input' | 'computed',        // 입력/계산 구분 (필수)
+    formula: 'q * p',                  // computed 수식 (computed 필수)
     c:    '#534AB7',                  // 차트·트리 색상 (선택)
     pct:  1,                           // 비율 변수 표시 (선택)
+    role: 'revenue' | 'cost' | ...     // 의미 태그 (선택)
     desc: '추정 근거·출처·계산식'      // 노드 클릭 시 표시 (필수)
   },
   ...
@@ -306,62 +310,71 @@ const D = {
 
 **원칙**
 
-- 매출·비용·B/S·밸류에이션의 모든 항목이 같은 스키마를 따른다 — 입력값/결과값 구분 없음
-- 결과값은 `simCalc()`에 의해 갱신되고, 입력값은 슬라이더에 의해 갱신됨
-- `desc`는 추정 근거를 텍스트로 박제해 LLM이 만든 narrative를 영속화하는 자리
+- 매출·비용·B/S·밸류에이션의 모든 항목이 같은 스키마를 따른다.
+- `parent`를 기준으로 `TREE`가 자동 생성된다.
+- `type:'input'`은 슬라이더와 가정변수표로 자동 편입된다.
+- `type:'computed'`는 `formula`를 기준으로 `simCalc()`가 계산한다.
+- `desc`는 `[객관]`, `[주관]`, `[외생]`, `[계산]` 같은 선두 태그 + 문장 단위 설명으로 작성한다. 가정변수표에서는 `ⓘ` 버튼 모달의 태그 칩과 불릿으로 표시된다.
 
-### 9.2 `INPUT_KEYS` — 입력값 식별
+### 9.2 `INPUT_KEYS` — 입력값 자동 식별
 
 ```js
-const INPUT_KEYS = new Set([
-  'ecom_suv_market', 'ecom_suv_share', 'ecom_suv_asp',
-  'branch_suv_market', 'branch_suv_share', 'branch_suv_asp',
-  'unit_cost', 'warranty_per_unit', 'wacc', 'terminal_growth',
-  // ... 슬라이더로 조정 가능한 모든 가정변수
-]);
+INPUT_KEYS = new Set(Object.keys(D).filter(k => D[k].type === 'input'));
 ```
 
-이 Set에 포함된 키는 트리에서 **주황색 점(●) + "가정변수: 하드코딩"** 라벨이 붙는다. 결과값과 입력값의 시각적 구분.
+`type:'input'`인 노드는 트리에서 **주황색 점(●) + "가정변수: 하드코딩"** 라벨이 붙고, 시뮬레이터·가정변수표에 자동 편입된다. 별도 `INPUT_KEYS` 수기 작성은 하지 않는다.
 
 ### 9.3 `YRS` — 시간축
 
 ```js
 const YRS = ['2025','2026','2027','2028','2029','2030','2031'];
+const HIST_N = 1;
+const _isFc = i => i >= HIST_N;
 ```
 
-배열 길이가 모든 `D[key].v`의 길이와 일치해야 함. 첫 항목은 관행적으로 실적 연도(시뮬레이터에서 잠금).
+배열 길이가 모든 `D[key].v`의 길이와 일치해야 함. `HIST_N`개 연도는 실적(Historical)으로 잠금 처리되고, 이후 연도는 추정(Forecast)으로 슬라이더 조정 가능하다.
 
-### 9.4 `DEFAULTS_S` — 기본값 보존
+템플릿은 이 값을 기준으로 다음을 자동 처리한다.
+
+- 시뮬레이터 실적 연도 잠금
+- 연도 선택기 실적/추정 2행 분리
+- 차트·테이블의 Historical/Forecast 밴드
+- 추정 막대 opacity 및 추정 컬럼 음영
+
+### 9.4 `DEFAULTS_S` — 기본값 자동 보존
 
 ```js
-const DEFAULTS_S = {
-  ecom_suv_market: [10000, 10500, ...],
-  ecom_suv_share: [0.03, 0.032, ...],
-  ecom_suv_asp: [22000, 22500, ...],
-  ...
-};
+const DEFAULTS_S = deriveDefaultsFromD(); // D의 input 노드 v에서 자동 추출
 let SV = {}; for (let k in DEFAULTS_S) SV[k] = DEFAULTS_S[k].slice();
 ```
 
 - `DEFAULTS_S`: 원본 실적/사업계획값. 절대 변경하지 않음. 슬라이더의 주황색 마크 위치.
 - `SV`: 현재 시뮬레이터 상태. 슬라이더 조작 시에만 변경.
 - "기본값" 버튼은 `SV ← DEFAULTS_S` 복사.
+- `DEFAULTS_S`를 수기로 다시 쓰지 않는다. `D`와 기본값의 이중 입력을 막기 위함이다.
 
 ---
 
 ## 10. 트리 구조
 
-### 10.1 노드 생성자 두 종류
+### 10.1 D.parent 기반 자동 트리
 
 ```js
-// 그룹 노드 (자식 가짐, 색상·라벨 영역)
-function N(id, label, sub, bg, fg, sfg, bdr, data, children) {...}
-
-// 드라이버 리프 (가정변수·말단 수치)
-function DR(id, label, data, extras) {...}
+D = {
+  root: {label:'P&L', parent:null, type:'computed', formula:'op_profit', ...},
+  rev: {label:'매출 합계', parent:'root', type:'computed', formula:'used_car_sales + auction_sales', ...},
+  used_car_sales: {label:'중고차 판매', parent:'rev', type:'computed', formula:'ecommerce_sales + branch_sales', ...},
+  ecommerce_sales: {label:'이커머스 중고차 판매', parent:'used_car_sales', type:'computed', formula:'ecommerce_units * ecommerce_asp', ...},
+  ecommerce_units: {label:'이커머스 판매대수', parent:'ecommerce_sales', type:'computed', formula:'market_units * ecommerce_share', ...},
+  market_units: {label:'시장판매대수', parent:'ecommerce_units', type:'input', ...},
+  ecommerce_share: {label:'점유율', parent:'ecommerce_units', type:'input', pct:1, ...},
+  ecommerce_asp: {label:'ASP', parent:'ecommerce_sales', type:'input', ...}
+}
 ```
 
-**그룹 노드 속성**
+템플릿은 `D[k].parent`를 따라 `TREE`를 자동 생성한다. 예전의 `N()` / `DR()` 생성자는 호환용 stub만 남겨두며 신규 모델에서는 쓰지 않는다.
+
+**노드 속성**
 
 | 속성 | 의미 |
 |------|------|
@@ -369,40 +382,14 @@ function DR(id, label, data, extras) {...}
 | `label` | 트리 표시 텍스트 |
 | `sub` | 부제 (수식 설명) |
 | `bg/fg/sfg/bdr` | 배경·전경·부제·테두리 색상 |
-| `data` | `D[data]` 참조 (차트·테이블의 소스) |
-| `children` | 자식 노드 배열 |
-
-**드라이버 노드 속성**
-
-| 속성 | 의미 |
-|------|------|
-| `drv: 1` | 드라이버 플래그 (스타일·크기 분기) |
-| `data` | 단일 데이터 키 |
-| `extra` | 보조 데이터 키 배열 (차트 팝업에 다중 시계열 표시용) |
+| `parent` | 부모 노드 id. root만 `null` |
+| `type` | `input`이면 드라이버 리프, `computed`면 그룹/계산 노드 |
+| `formula` | Excel로 옮길 계산식 |
+| `role` | `revenue`, `cost`, `profit`, `valuation` 등 의미 태그 |
 
 ### 10.2 트리 정의 패턴
 
-```js
-const TREE = N('root', 'KCar Enterprise Value', 'DCF 기준 주주가치', ..., 'equity_value', [
-  N('rev', '매출 합계', '중고차+경매+렌터카+기타', ..., 'total_sales', [
-    N('used_car', '중고차 판매', '이커머스+지점내방', ..., 'used_car_sales', [
-      N('ecom', '이커머스 중고차', '차급별 Q×P', ..., 'ecom_sales', [
-        N('ecom_suv', 'SUV', '판매대수×ASP', ..., 'ecom_suv_sales', [
-          DR('ecom_suv_market', '시장판매대수 (대)', 'ecom_suv_market'),
-          DR('ecom_suv_share', '케이카 점유율 (%)', 'ecom_suv_share'),
-          DR('ecom_suv_asp', '평균판매가격 (천원)', 'ecom_suv_asp'),
-        ]),
-        ...
-      ]),
-      N('branch', '지점내방 중고차', '차급별 Q×P', ..., 'branch_sales', [...]),
-    ]),
-    N('auction', '경매', '상품+용역', ..., 'auction_sales', [...]),
-    N('rental', '렌터카', '매각+장기렌트', ..., 'rental_sales', [...]),
-  ]),
-  N('cost', '비용 합계', '원가+보증+변동비+인건비', ..., 'total_cost', [...]),
-  N('fcff', 'FCFF', 'EBIT(1-t)+D&A-CapEx-ΔNWC', ..., 'fcff', []),
-]);
-```
+상위 계산 노드의 수식에 들어가는 요소는 가능한 한 하위 노드로 둔다. 예를 들어 `이커머스 판매대수 = 시장판매대수 × 점유율`이면 `시장판매대수`와 `점유율`은 `이커머스 판매대수`의 자식이 되어야 한다.
 
 ### 10.3 트리 설계 규칙
 
@@ -558,20 +545,28 @@ function row(label, key, indent, bold, color, parentGroup) {
 
 ### 12.4 가정변수 일람
 
-섹션별로 그룹화된 표.
+`D`의 `type:'input'` 노드를 parent별로 자동 그룹화한다. 표에는 변수명, 설명 버튼, 연도별 값이 표시된다.
 
-```js
-const sections = [
-  {title: '카테고리명', color: '#534AB7', items: [
-    {key: 'variable_key', label: '표시명', note: '설명'},
-    ...
-  ]},
-  ...
-];
-// 각 섹션: 색상 강조 헤더 + (변수 × 연도) 표
+설명은 긴 텍스트를 표 안에 직접 넣지 않고 `ⓘ` 버튼 + 모달로 표시한다. `desc` 작성 규약은 다음과 같다.
+
+```text
+[객관] 과거 실적 CAGR을 기준으로 산정. 2025년 이후는 시장 성장률을 적용.
+[주관] 경영진 목표치를 기준으로 상한/하한을 설정. Base case는 중간값 사용.
+[계산] 매출 = 판매대수 × ASP. 판매대수는 시장판매대수 × 점유율.
 ```
 
-`note`는 변수의 추정 근거나 시나리오 범위를 짧게 적는 자리.
+선두 대괄호 태그는 모달의 색상 칩으로 표시되고, 본문은 마침표 기준 불릿으로 나뉜다.
+
+### 12.5 숫자 표기 규칙
+
+표시값은 공통 `fmtSmart()`를 경유한다. 내부 계산값은 반올림하지 않는다.
+
+| 값 유형 | 표시 |
+|---|---|
+| `%` / `pct:1` | 소수 1자리 |
+| `|v| >= 10` | 정수 반올림 + 천 단위 콤마 |
+| `|v| < 10` | 소수 최대 2자리 |
+| 원화 큰 숫자 | 차트 축약 표기에서 조/억/만 단위 사용 |
 
 ---
 
@@ -600,18 +595,18 @@ const SIM_SECS = [
 ### 13.2 연도 선택기 (다중 토글)
 
 ```js
-let _simYrs = new Set();  // 빈 Set = 전체 (실적 제외)
+let _simYrs = new Set();  // 빈 Set = 전체 추정 연도
 
-// 클릭 시 토글, 모든 연도 선택 시 다시 빈 Set으로
-if (_simYrs.size === 6 && !_simYrs.has(0)) _simYrs.clear();
+// 클릭 시 토글, 모든 추정 연도 선택 시 다시 빈 Set으로
+if (_simYrs.size === YRS.length - HIST_N) _simYrs.clear();
 
 function _getAffectedYears() {
-  if (_simYrs.size === 0) return [1,2,3,4,5,6];
-  return [..._simYrs].filter(i => i > 0).sort();
+  if (_simYrs.size === 0) return YRS.map((_, i) => i).slice(HIST_N);
+  return [..._simYrs].filter(i => _isFc(i)).sort();
 }
 ```
 
-실적 연도(index 0)는 항상 잠금. 표시되지만 클릭 불가.
+연도 선택기는 실적/추정 2행으로 분리된다. 실적 행은 회색 점선·잠금 상태이고, 추정 행만 클릭 가능하다.
 
 ### 13.3 슬라이더 행 구조
 
@@ -660,50 +655,51 @@ function _switchCase(name) {
 
 ## 14. 시뮬레이션 엔진
 
-### 14.1 핵심 패턴: 정확 재계산 + Proportional Scaling 혼합
+### 14.1 핵심 패턴: D.formula 기반 결정론적 재계산
 
 ```js
-function simCalc() {
-  let v = SV, d = DEFAULTS_S, r = {};
-  
-  // (a) Actuals 보존 — 수식 재현 불가 항목의 기본값
-  const A = {
-    ecom_sales:[120000, 150000, ...],  // 엑셀 원본 실제값
-    ...
-  };
-  
-  // (b) 정확 재계산 — 수식이 명확한 항목
-  let ecom_suv_units = Array(7).fill(0);
-  for (let i = 0; i < 7; i++) {
-    ecom_suv_units[i] = v.ecom_suv_market[i] * v.ecom_suv_share[i];
-  }
-  r.ecom_suv_sales = ecom_suv_units.map((q, i) => q * v.ecom_suv_asp[i]);
-  
-  // (c) Proportional Scaling — 상세 차급을 단순화한 항목
-  r.ecom_sales = r.ecom_suv_sales.map((_, i) => {
-    let qRatio = totalUnits(i) / defaultTotalUnits(i);      // 판매대수 비율
-    let pRatio = avgAsp(i) / defaultAvgAsp(i);              // ASP 비율
-    return A.ecom_sales[i] * qRatio * pRatio;               // 실적값 × 비율
-  });
-  
-  // (d) 교차 참조 — 매출 결과를 비용에 다시 사용
-  r.inventory_cost = totalUnits.map((q, i) => q * v.unit_cost[i]);
-  r.warranty_cost = totalUnits.map((q, i) => q * v.warranty_per_unit[i]);
-  
-  // (e) D 객체 갱신 — UI가 자동으로 새 값을 반영
-  for (let k in r) if (D[k]) D[k].v = r[k];
-}
+type:'computed',
+formula:'market_volume * share * asp'
 ```
+
+템플릿의 기본 엔진은 `D[k].formula`를 파싱해 토폴로지 순서로 계산한다. 회사별 모델에서 별도 `simCalc()`를 수기로 작성하지 않는다. 수식이 닫히지 않는 특수 항목만 custom layer에서 확장한다.
+
+지원 함수:
+
+| 함수 | 의미 |
+|---|---|
+| `SUM(a,b,c)` | 같은 연도 합산 |
+| `MIN(a,b)` / `MAX(a,b)` / `AVG(a,b)` | 같은 연도 기준 계산 |
+| `IF(cond,a,b)` | 조건식 |
+| `PREV(x)` | 전년도 값. `PREV(self)` 롤포워드 지원 |
+| `SUMALL(x)` | 전체 기간 합계 |
+| `LAST(x)` / `FIRST(x)` | 마지막/첫 연도 값 |
 
 ### 14.2 세 가지 계산 방식
 
 | 방식 | 적용 대상 | 예시 |
 |------|---------|------|
 | **정확 재계산** | 수식이 닫힌 형태 | Q × P, 판매대수 × 단위원가, 차입금 × 이자율 |
+| **롤포워드** | 전년 잔액 + 당해 증감 | `PREV(debt) + borrowing - repayment` |
 | **Proportional Scaling** | 세부 분해를 단순화한 항목 | 상세 차급 매출, 감가상각, 보험료 |
-| **외삽 (실적값 + 비율)** | 인건비 등 인원·단가 곱 | f_labor = A.f_labor × (인원비) × (단가비) |
+| **외삽 (실적값 + 비율)** | 인건비 등 인원·단가 곱 | labor = headcount × avg_salary |
 
-### 14.3 Proportional Scaling 공식
+### 14.3 `PREV(self)` 롤포워드
+
+재무모델에서 B/S 잔액, 누적 구독자, 차입금, 이익잉여금은 자기참조 롤포워드가 자주 필요하다.
+
+```js
+installed_base: {
+  type:'computed',
+  formula:'PREV(installed_base) + new_units'
+}
+```
+
+엔진은 `PREV(self)`의 self dependency를 순환참조로 보지 않고, 연도 순차 평가로 계산한다. 첫 연도의 `PREV()`는 0으로 처리한다. 기준연도 시작 잔액이 필요하면 별도 input 노드(`opening_balance`)를 두고 `opening_balance + PREV(self) + delta` 형태로 작성한다.
+
+### 14.4 Proportional Scaling 공식
+
+수식이 완전히 닫히지 않는 경우에만 폴백으로 사용한다.
 
 ```
 r[k][i] = Actuals[k][i] × Π(input_ratio_j)
@@ -711,13 +707,7 @@ r[k][i] = Actuals[k][i] × Π(input_ratio_j)
 where input_ratio_j = SV[input_j][i] / DEFAULTS_S[input_j][i]
 ```
 
-- 기본값과 똑같으면 비율이 1이 되어 실적값 그대로
-- 입력값이 2배 되면 결과도 2배 (선형 가정)
-- 여러 입력의 효과는 곱셈으로 합산
-
-**한계**: 비선형 효과는 표현 못함. 판매대수가 2배여도 차급 믹스와 ASP가 바뀌면 매출이 정확히 2배가 아닐 수 있음. 그래서 **수식이 닫힌 항목은 정확 재계산을 우선**하고, Scaling은 폴백.
-
-### 14.4 갱신 체인
+### 14.5 갱신 체인
 
 슬라이더 조작 한 번에 다음 순서로 실행.
 
@@ -745,22 +735,13 @@ _updateActiveCase()             (5) 활성 케이스에 자동 저장
 
 ```js
 D = {
-  new_signups: {v:[...], u:'명', desc:'마케팅 채널별 신규 가입'},
-  churn:       {v:[...], u:'%',  pct:1, desc:'월간 이탈률'},
-  cum_subs:    {v:[...], u:'명', desc:'기말 누적 구독자'},
-  arpu:        {v:[...], u:'원/명/월'},
-  mrr:         {v:[...], u:'원'},
-  rev:         {v:[...], u:'원'},
+  new_signups: {parent:'cum_subs', type:'input', v:[...], u:'명', desc:'[객관] 마케팅 채널별 신규 가입.'},
+  churn:       {parent:'cum_subs', type:'input', v:[...], u:'%', pct:1, desc:'[주관] 월간 이탈률.'},
+  cum_subs:    {parent:'rev', type:'computed', formula:'PREV(cum_subs) * (1 - churn) + new_signups', v:[...], u:'명', desc:'[계산] 전년 누적 구독자에서 이탈을 차감하고 신규 가입자를 더함.'},
+  arpu:        {parent:'mrr', type:'input', v:[...], u:'원/명/월'},
+  mrr:         {parent:'rev', type:'computed', formula:'cum_subs * arpu', v:[...], u:'원'},
+  rev:         {parent:'root', type:'computed', formula:'mrr * 12', v:[...], u:'원', role:'revenue'},
 };
-
-INPUT_KEYS = new Set(['new_signups', 'churn', 'arpu', 'cac', 'gross_margin', ...]);
-
-// simCalc — 판매대수 누계 로직을 구독자 누계로 대체
-for (let i = 0; i < N; i++) {
-  cum_subs[i] = (i>0 ? cum_subs[i-1] : 0) * (1 - churn[i]) + new_signups[i];
-}
-r.mrr = cum_subs.map((s, i) => s * arpu[i]);
-r.rev = r.mrr.map(m => m * 12);
 ```
 
 ### 15.2 제조업 (CAPA 기반)
@@ -808,11 +789,16 @@ GMV × 테이크레이트 = 매출
 
 ---
 
-## 17. 생성 방식과 IR JSON
+## 17. Excel 구현 방식과 보조 IR
 
-Python + `openpyxl`로 결정론적 생성. LLM은 관여하지 않음.
+Excel 모델은 두 방식으로 구현할 수 있다.
 
-HTML 트리는 IR 역할. 엑셀 생성기는 다음 형식의 JSON을 입력으로 받는다.
+1. 코워커/LLM이 BM md와 HTML 구조를 읽고 `openpyxl` 등으로 직접 Excel 모델을 코딩함.
+2. 자동화가 필요할 때 HTML에서 내보낸 IR/JSON을 `build_excel.py`의 입력으로 사용함.
+
+어느 방식이든 기준은 같다. HTML에서 합의한 BM 구조, 드라이버, 가정변수, 수식, 검증 포인트가 Excel에 그대로 반영되어야 한다.
+
+IR/JSON은 Excel 생성을 돕는 보조 계약이다. 엑셀 생성기는 필요하면 다음 형식의 JSON을 입력으로 받을 수 있다.
 
 ```json
 {
@@ -843,7 +829,7 @@ HTML 트리는 IR 역할. 엑셀 생성기는 다음 형식의 JSON을 입력으
 }
 ```
 
-`D` 객체 + `TREE` + `INPUT_KEYS` + 각 노드의 수식 명세를 합치면 위 JSON이 됨. 엑셀 생성기는 이 JSON으로 시트·셀·수식을 결정론적으로 작성.
+`D` 객체 + 화면 구조 + 입력 변수 목록 + 각 노드의 수식 명세를 합치면 위 JSON이 됨. 다만 이 파일 자체가 목표는 아니다. 목표는 코워커/LLM 또는 `build_excel.py`가 같은 구조를 보고 수식이 박힌 Excel 모델을 재현하는 것이다.
 
 ---
 
@@ -1053,7 +1039,7 @@ FAST vs IB vs 회사 내규. 어느 표준이든 **일관성**이 핵심.
 완성된 Excel 모델을 먼저 분석한 뒤 BM / 모델 구조를 언어화하는 Case A 경로.
 
 - **원본**: `(Financial model) 케이카_2023.xlsx`
-- **BM 구조 문서**: [`../html-examples/kcar-2023/bm_model_structure.md`](../html-examples/kcar-2023/bm_model_structure.md)
+- **BM 구조 문서**: [`../examples/kcar-2023/kcar_bm_model_structure.md`](../examples/kcar-2023/kcar_bm_model_structure.md)
 - **매출 BM**: 이커머스 중고차 / 지점내방 중고차 / 경매 / 렌터카 / 용역·기타
 - **핵심 드라이버**: 차급별 시장판매대수, 케이카 점유율, 평균판매가격, 1대당 원가, 보증비, 인건비 생산성, CapEx, NWC, WACC
 - **모델 흐름**: Sales → Cost / Labor / CapEx / NWC → FCFF → DCF → Equity Value
@@ -1064,19 +1050,14 @@ FAST vs IB vs 회사 내규. 어느 표준이든 **일관성**이 핵심.
 
 ## B. 구현 체크리스트
 
-새 회사에 본 프레임워크를 적용할 때의 8단계.
+새 회사에 본 프레임워크를 적용할 때의 6단계.
 
 1. **사업모델 파악** — BM 식별, Q×P 분해 트리 초안 (사람 + LLM 보조)
-2. **데이터 객체 작성** — `D = {key: {v, u, c, desc, pct}}` 채우기. 모든 desc 작성.
-3. **입력값 식별** — `INPUT_KEYS` Set 작성. 슬라이더로 조정할 변수만.
-4. **트리 정의** — `TREE = N(...)` 작성. 매출/비용/이익 3대 분기, 색상은 BM별로.
-5. **시뮬레이션 엔진** — `simCalc()` 작성. 수식 닫힌 항목은 정확 재계산, 그 외는 Scaling.
-   - Actuals (`A`, `AC`) 객체에 원본 실적값 보존
-   - 정확 재계산이 가능한 모든 항목은 정확하게
-   - 매출-비용 교차 참조 명시
-6. **시뮬레이터 섹션** — `SIM_SECS` 작성. min/max는 합리적 범위, step은 의미 단위.
-7. **검증** — 원본 엑셀 vs simCalc 결과 전 항목·전 연도 크로스체크. 차이는 ±0.5% 이내.
-8. **가정변수 일람** — 슬라이더와 연동되는 변수의 추정 근거(`note`)를 사람이 작성.
+2. **시간축 작성** — `YRS`, `HIST_N` 설정. 실적/추정 구간을 명확히 분리.
+3. **데이터 객체 작성** — `D = {key: {label, parent, type, formula, v, u, desc}}` 채우기.
+4. **수식 검토** — 모든 computed 노드가 Excel로 옮길 수 있는 수식으로 닫혔는지 확인.
+5. **desc 검토** — `[객관]`, `[주관]`, `[외생]`, `[계산]` 태그와 근거 문장 작성.
+6. **검증** — 원본 엑셀 vs HTML 계산 결과 전 항목·전 연도 크로스체크. 차이는 ±0.5% 이내.
 
 ---
 
@@ -1087,15 +1068,11 @@ FAST vs IB vs 회사 내규. 어느 표준이든 **일관성**이 핵심.
 | 라인 | 내용 |
 |------|------|
 | 7~65 | CSS 스타일 |
-| 117~244 | 데이터 객체 `D` (~120 변수) |
-| 246~261 | `INPUT_KEYS` Set (~50개) |
-| 263~401 | `TREE` 정의 |
-| 403~447 | 레이아웃·렌더링 엔진 |
-| 449~718 | 차트 팝업·브릿지 |
-| 720~843 | P&L 테이블 |
-| 848~903 | 인터랙션 (pan/zoom/drag/click) |
-| 908~1021 | 가정변수 일람 |
-| 1030~1064 | `DEFAULTS_S` |
-| 1068~1251 | `simCalc()` |
-| 1254~1271 | `SIM_SECS` (슬라이더 정의) |
-| 1276~1494 | 시뮬레이터 UI + 케이스 관리 |
+| 상단 | `YRS`, `HIST_N` |
+| 데이터 계층 | 데이터 객체 `D` |
+| 파생 인덱스 | `INPUT_KEYS`, `TREE`, `SIM_SECS`, `DEFAULTS_S` 자동 생성 |
+| 렌더링 | 레이아웃·캔버스·차트 팝업·브릿지 |
+| UI | P&L 테이블·가정변수 일람·설명 모달 |
+| 엔진 | 수식 파서·토폴로지 정렬·연도 순차 평가 |
+| Export | Excel 다운로드·보조 JSON 다운로드 |
+| 시뮬레이터 | 연도 선택기·슬라이더·케이스 관리 |

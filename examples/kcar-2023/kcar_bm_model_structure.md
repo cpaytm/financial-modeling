@@ -1,20 +1,5 @@
 # 케이카 2023 재무모델 BM / 모델 구조
 
-- 원본 파일
-  - `(Financial model) 케이카_2023.xlsx`
-
-- 문서 목적
-  - 완성된 Excel 모델을 LLM이 읽고, 실습용 BM / 모델 구조로 언어화함
-  - 이 문서를 기준으로 HTML 모델 구조를 만들고, HTML 검토 후 Excel 모델을 재구현함
-  - 원본 Excel을 100% 복제하는 것이 아니라, 핵심 BM과 모델링 논리를 단순화해 재현함
-
-- 원본 Excel의 역할
-  - 최종 산출물의 레퍼런스
-  - 실습자가 만들어야 할 모델의 방향성을 보여주는 완성본
-  - BM Brief, HTML Framework, Excel Framework로 나누어 재구성할 대상
-
----
-
 ## 1. 회사 / 사업 개요
 
 - 회사
@@ -484,7 +469,7 @@ KCar Enterprise Value
 ## 15. 다음 산출물
 
 - 다음 단계 1
-  - 이 BM 문서를 기준으로 `html-framework/template.html`에 맞춘 HTML 모델 구조 생성
+  - 이 BM 문서를 기준으로 `framework/template.html`에 맞춘 HTML 모델 구조 생성
 
 - 다음 단계 2
   - HTML에서 매출 트리, 비용 트리, FCFF 흐름, valuation 민감도를 시각적으로 검토

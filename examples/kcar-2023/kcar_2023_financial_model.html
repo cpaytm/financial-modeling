@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>인터랙티브 추정 모델 — 템플릿</title>
+<title>케이카 2023 인터랙티브 재무모델</title>
 <style>
 /* Financial Modeling DS — fonts (Outfit for heading, Pretendard for body). 토큰: design-guide/tokens.js */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
@@ -93,7 +93,8 @@ canvas#c{display:block;width:100%;height:100%}
 <body style="display:flex;overflow:hidden;height:100vh">
 <div id="treePanel" style="flex:1;position:relative;min-width:0;overflow:hidden"><canvas id="c"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <div class="hud top-bar">
   <button onclick="zoomBtn(-1)">−</button><span id="zoom-label">100%</span><button onclick="zoomBtn(1)">+</button>
   <div class="sep"></div>
@@ -112,7 +113,7 @@ canvas#c{display:block;width:100%;height:100%}
   <button id="btnDelete" onclick="deleteSelected()" disabled style="color:#DC2626;border-color:#FECACA" title="선택 노드 삭제">삭제</button>
   <div class="sep"></div>
   <button onclick="exportToExcel()" title="현재 모델을 Excel 수식이 박힌 .xlsx로 다운로드">📥 엑셀</button>
-  <button onclick="exportToJSON()" title="IR JSON 내보내기 (Python build_excel.py 입력용)">📥 JSON</button>
+  <button onclick="exportToJSON()" title="보조 JSON 내보내기">📥 JSON</button>
   <button onclick="resetToDraft()" title="편집·시뮬레이션 변경을 버리고 초안 상태로 복귀">초안 리셋</button>
 </div>
 <div class="hud legend">
@@ -154,6 +155,13 @@ canvas#c{display:block;width:100%;height:100%}
     <div id="assumBody"></div>
   </div>
 </div>
+<div class="popup-overlay" id="varDescOverlay" onclick="if(event.target===this)closeVarDesc()" style="display:none">
+  <div class="popup" id="varDescPopup" style="min-width:420px;max-width:640px;max-height:80vh;overflow-y:auto;padding:22px 24px">
+    <button class="popup-close" onclick="closeVarDesc()">✕</button>
+    <h3 id="varDescTitle" style="margin-bottom:6px">가정 설명</h3>
+    <div id="varDescBody"></div>
+  </div>
+</div>
 </div><div id="simPanel" style="width:0;overflow:hidden;transition:width .3s;border-left:1px solid #ddd;background:#fff;display:flex;flex-direction:column;flex-shrink:0"></div>
 
 </div><div id="simPanel" style="width:0;overflow:hidden;transition:width .3s;border-left:1px solid #ddd;background:#fff;display:flex;flex-direction:column;flex-shrink:0"></div>
@@ -161,126 +169,555 @@ canvas#c{display:block;width:100%;height:100%}
 
 <script>
 // ============================================================
-// 인터랙티브 추정 모델 — 템플릿
+// 케이카 2023 인터랙티브 재무모델
 //
-// html-framework/html_modeling_framework.md의 Part II 구현 청사진. 회사별 데이터·트리·계산식을
+// framework/html_modeling_framework.md의 Part II 구현 청사진. 회사별 데이터·트리·계산식을
 // 채워 단일 HTML 산출물로 사용. 엔진(렌더링·UI·시뮬레이터·케이스 관리)은
-// 그대로 두고 아래 표시된 5개 블록만 회사에 맞게 수정한다.
+// 그대로 두고 YRS, HIST_N, D만 회사에 맞게 수정한다. DEFAULTS_S, TREE,
+// INPUT_KEYS, SIM_SECS, 표, 가정변수표, 기본 simCalc는 D에서 자동 파생된다.
 //
 // 채워야 할 블록:
 //   1. YRS          — 시간축 (실적+추정 연도 배열)
-//   2. D            — 데이터 객체 (모든 시계열)
-//   3. INPUT_KEYS   — 입력 변수 식별
-//   4. TREE         — 트리 구조
-//   5. P&L 테이블   — showRevTable() 안의 row() 호출
-//   6. 가정변수표   — showAssumptions() 안의 sections[]
-//   7. DEFAULTS_S   — 기본값 보존
-//   8. simCalc()    — 시뮬레이션 엔진
-//   9. SIM_SECS     — 슬라이더 정의
+//   2. HIST_N       — 실적 연도 수
+//   3. D            — 데이터 객체 (모든 시계열·수식·트리 parent)
 // ============================================================
 
-// YRS — 시간축. 첫 항목은 관행상 실적 연도 (시뮬레이터에서 잠금).
-// 길이가 모든 D[k].v 및 DEFAULTS_S[k]의 길이와 일치해야 함. 엔진은 YRS.length에 맞춰 자동 동작.
-const YRS=['2025','2026','2027','2028','2029','2030','2031'];
+// YRS — 시간축. HIST_N개 연도는 실적(Historical)으로 보고 시뮬레이터에서 잠근다.
+// 길이가 모든 D[k].v의 길이와 일치해야 함. 엔진은 YRS.length에 맞춰 자동 동작.
+const YRS=['2023', '2024', '2025', '2026', '2027', '2028', '2029'];
+const HIST_N=1;
+const _isFc=i=>i>=HIST_N;
 
-// ============================================================
-// DATA LAYER — 노드 단일 저장소 (수식 그래프 + 트리 구조 통합)
-// 자세한 스키마: html-framework/html_modeling_framework.md §9
-//
-// 각 노드 스키마:
-//   v:       [v_y1, ..., v_yN]   계산된 값 (simCalc이 갱신)
-//   u:       '원' | '대' | '%'    단위
-//   desc:    '추정 근거·계산식'   설명
-//   c:       '#RRGGBB'           차트 색
-//   pct:     1                   비율 표시
-//
-//   label:   '표시명'
-//   parent:  '부모 노드 id' | null (root만 null)
-//   type:    'input' | 'computed'
-//   formula: '수식 문자열' (computed만, type='input'은 SV에서 직접)
-//   sub:     '부제'
-//   bg,fg,sfg,bdr: 트리 노드 스타일 (computed만)
-//
-// 수식 문법:
-//   - 산술: + - * / ( )
-//   - 변수 참조: 다른 노드의 id
-//   - 함수: SUM(a,b,...), IF(cond,then,else), MIN/MAX/AVG(a,b,...), PREV(x)
-//   - 평가는 연도별 element-wise (모든 변수는 YRS.length 배열)
-// ============================================================
 const D={
-  // ===== Root =====
   root: {
-    label:'P&L', sub:'매출 − 비용 = 영업이익',
-    parent:null, type:'computed', formula:'op_profit',
-    v:[0,0,0,0,0,0,0], u:'원',
-    desc:'P&L 전체. bottom line(영업이익)을 표시.',
+    label:'KCar Enterprise Value', sub:'채널별 Q × P → FCFF → 밸류에이션',
+    parent:null, type:'computed', formula:'enterprise_value',
+    v:[0,0,0,0,0,0,0], u:'원', point:1,
+    desc:'케이카 재무모델의 최상위 구조. 채널별 중고차 판매 Q×P에서 매출·비용·FCFF·기업가치를 연결.',
     bg:'#0F0F12', fg:'#fff', sfg:'#9CA3AF',
   },
-
-  // ===== 매출 (semantic.revenue: primary.900) =====
   rev: {
-    label:'매출 합계', sub:'Σ(BM별 매출)',
-    parent:'root', type:'computed', formula:'rev_block',
+    label:'매출 합계', sub:'중고차 판매 + 부가 매출',
+    parent:'root', type:'computed', formula:'SUM(used_car_sales, auction_sales, rental_sales, service_other_sales)',
     v:[0,0,0,0,0,0,0], u:'원', c:'#1E2185',
-    desc:'매출 합계. 여러 BM이면 sum 형태로 확장 (예: rev_a + rev_b).',
+    desc:'케이카 매출 합계. 이커머스/지점내방 중고차 판매와 경매, 렌터카, 용역/기타 매출을 합산.',
     bg:'#1E2185', fg:'#fff', sfg:'#A1B8FF',
   },
-  rev_block: {
-    label:'매출 (예시 BM)', sub:'Q × P',
-    parent:'rev', type:'computed', formula:'unit_q * unit_price',
+  used_car_sales: {
+    label:'중고차 판매', sub:'이커머스 + 지점내방',
+    parent:'rev', type:'computed', formula:'ecommerce_sales + branch_sales',
     v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0',
-    desc:'BM 매출 = 수량 × 단가.',
+    desc:'핵심 매출원. 채널별·차급별 Q×P 모델로 계산.',
+    bg:'#3332D0', fg:'#fff', sfg:'#A1B8FF',
+  },
+  ecommerce_sales: {
+    label:'이커머스 중고차 판매', sub:'차급별 Q × P',
+    parent:'used_car_sales', type:'computed', formula:'SUM(ec_suv_rev, ec_large_rev, ec_midsize_rev, ec_compact_rev, ec_small_rev, ec_truck_rev, ec_other_rev)',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'온라인 채널 매출. 차급별 시장판매대수, 케이카 점유율, ASP를 곱해 계산.',
     bg:'#EDF3FF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#A1B8FF',
   },
-  unit_q: {
-    label:'수량 (Q)',
-    parent:'rev_block', type:'input',
-    v:[100,120,150,180,220,260,300], u:'대', c:'#5D68F7',
-    desc:'수량 — 예시 입력. Fleet/CAPA/구독자 등으로 대체.',
+  branch_sales: {
+    label:'지점내방 중고차 판매', sub:'차급별 Q × P',
+    parent:'used_car_sales', type:'computed', formula:'SUM(br_suv_rev, br_large_rev, br_midsize_rev, br_compact_rev, br_small_rev, br_truck_rev, br_other_rev)',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'오프라인 지점 방문 채널 매출. 이커머스와 같은 차급 구조를 사용.',
+    bg:'#EDF3FF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#A1B8FF',
   },
-  unit_price: {
-    label:'단가 (P)',
-    parent:'rev_block', type:'input',
-    v:[1000000,1050000,1100000,1150000,1200000,1250000,1300000], u:'원/대', c:'#7C91FD',
-    desc:'단가 — 예시 입력. ASP/ARPU/AOV 등으로 대체.',
+  ec_suv_rev: {
+    label:'이커머스 SUV', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_suv_volume * ec_suv_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 SUV 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
   },
-
-  // ===== 비용 (semantic.cost: neutral.700) =====
+  market_suv: {
+    label:'SUV 시장판매대수', parent:'ec_suv_volume', type:'input',
+    v:[420000,438000,456000,475000,494000,514000,535000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_suv_share: {
+    label:'이커머스 SUV 점유율', parent:'ec_suv_volume', type:'input',
+    v:[0.018,0.019,0.02,0.021,0.022,0.023,0.024], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_suv_volume: {
+    label:'이커머스 SUV 판매대수', parent:'ec_suv_rev', type:'computed', formula:'market_suv * ec_suv_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 SUV 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_suv_asp: {
+    label:'이커머스 SUV ASP', parent:'ec_suv_rev', type:'input',
+    v:[28000000,28504000,29017072,29539379,30071088,30612368,31163390], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 SUV 평균판매가격.',
+  },
+  ec_large_rev: {
+    label:'이커머스 대형', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_large_volume * ec_large_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 대형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  market_large: {
+    label:'대형 시장판매대수', parent:'ec_large_volume', type:'input',
+    v:[105000,108000,111000,114000,118000,121000,125000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_large_share: {
+    label:'이커머스 대형 점유율', parent:'ec_large_volume', type:'input',
+    v:[0.014,0.015,0.016,0.017,0.018,0.019,0.02], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_large_volume: {
+    label:'이커머스 대형 판매대수', parent:'ec_large_rev', type:'computed', formula:'market_large * ec_large_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 대형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_large_asp: {
+    label:'이커머스 대형 ASP', parent:'ec_large_rev', type:'input',
+    v:[32000000,32576000,33162368,33759291,34366958,34985563,35615303], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 대형 평균판매가격.',
+  },
+  ec_midsize_rev: {
+    label:'이커머스 중형', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_midsize_volume * ec_midsize_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 중형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  market_midsize: {
+    label:'중형 시장판매대수', parent:'ec_midsize_volume', type:'input',
+    v:[260000,267000,274000,282000,290000,298000,307000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_midsize_share: {
+    label:'이커머스 중형 점유율', parent:'ec_midsize_volume', type:'input',
+    v:[0.017,0.018,0.019,0.02,0.021,0.022,0.023], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_midsize_volume: {
+    label:'이커머스 중형 판매대수', parent:'ec_midsize_rev', type:'computed', formula:'market_midsize * ec_midsize_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 중형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_midsize_asp: {
+    label:'이커머스 중형 ASP', parent:'ec_midsize_rev', type:'input',
+    v:[22000000,22396000,22799128,23209512,23627284,24052575,24485521], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 중형 평균판매가격.',
+  },
+  ec_compact_rev: {
+    label:'이커머스 준중형', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_compact_volume * ec_compact_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 준중형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  market_compact: {
+    label:'준중형 시장판매대수', parent:'ec_compact_volume', type:'input',
+    v:[230000,234000,239000,244000,249000,254000,259000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_compact_share: {
+    label:'이커머스 준중형 점유율', parent:'ec_compact_volume', type:'input',
+    v:[0.016,0.017,0.018,0.019,0.02,0.021,0.022], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_compact_volume: {
+    label:'이커머스 준중형 판매대수', parent:'ec_compact_rev', type:'computed', formula:'market_compact * ec_compact_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 준중형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_compact_asp: {
+    label:'이커머스 준중형 ASP', parent:'ec_compact_rev', type:'input',
+    v:[16500000,16797000,17099346,17407134,17720463,18039431,18364141], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 준중형 평균판매가격.',
+  },
+  ec_small_rev: {
+    label:'이커머스 소형', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_small_volume * ec_small_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 소형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  market_small: {
+    label:'소형 시장판매대수', parent:'ec_small_volume', type:'input',
+    v:[150000,151000,152000,154000,155000,157000,158000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_small_share: {
+    label:'이커머스 소형 점유율', parent:'ec_small_volume', type:'input',
+    v:[0.013,0.014,0.015,0.016,0.017,0.018,0.019], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_small_volume: {
+    label:'이커머스 소형 판매대수', parent:'ec_small_rev', type:'computed', formula:'market_small * ec_small_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 소형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_small_asp: {
+    label:'이커머스 소형 ASP', parent:'ec_small_rev', type:'input',
+    v:[11500000,11707000,11917726,12132245,12350625,12572937,12799250], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 소형 평균판매가격.',
+  },
+  ec_truck_rev: {
+    label:'이커머스 화물차', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_truck_volume * ec_truck_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 화물차 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  market_truck: {
+    label:'화물차 시장판매대수', parent:'ec_truck_volume', type:'input',
+    v:[120000,123000,126000,129000,132000,136000,139000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_truck_share: {
+    label:'이커머스 화물차 점유율', parent:'ec_truck_volume', type:'input',
+    v:[0.012,0.013,0.014,0.015,0.016,0.017,0.018], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_truck_volume: {
+    label:'이커머스 화물차 판매대수', parent:'ec_truck_rev', type:'computed', formula:'market_truck * ec_truck_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 화물차 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_truck_asp: {
+    label:'이커머스 화물차 ASP', parent:'ec_truck_rev', type:'input',
+    v:[18500000,18833000,19171994,19517090,19868398,20226029,20590097], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 화물차 평균판매가격.',
+  },
+  ec_other_rev: {
+    label:'이커머스 기타', sub:'시장대수 × 점유율 × ASP',
+    parent:'ecommerce_sales', type:'computed', formula:'ec_other_volume * ec_other_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7',
+    desc:'이커머스 기타 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  market_other: {
+    label:'기타 시장판매대수', parent:'ec_other_volume', type:'input',
+    v:[90000,91000,93000,94000,96000,97000,99000], u:'대', c:'#5D68F7',
+    desc:'차급별 중고차 시장 판매대수 가정.',
+  },
+  ec_other_share: {
+    label:'이커머스 기타 점유율', parent:'ec_other_volume', type:'input',
+    v:[0.01,0.011,0.012,0.013,0.014,0.015,0.016], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 이커머스 채널이 확보하는 비율.',
+  },
+  ec_other_volume: {
+    label:'이커머스 기타 판매대수', parent:'ec_other_rev', type:'computed', formula:'market_other * ec_other_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'이커머스 기타 판매대수 = 시장판매대수 × 점유율.',
+  },
+  ec_other_asp: {
+    label:'이커머스 기타 ASP', parent:'ec_other_rev', type:'input',
+    v:[14500000,14761000,15026698,15297179,15572528,15852833,16138184], u:'원/대', c:'#7C91FD',
+    desc:'이커머스 기타 평균판매가격.',
+  },
+  br_suv_rev: {
+    label:'지점내방 SUV', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_suv_volume * br_suv_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 SUV 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_suv_market_ref: {
+    label:'SUV 시장판매대수', parent:'br_suv_volume', type:'computed', formula:'market_suv',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 SUV 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_suv_share: {
+    label:'지점내방 SUV 점유율', parent:'br_suv_volume', type:'input',
+    v:[0.032,0.0326,0.0332,0.0338,0.0344,0.035,0.0356], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_suv_volume: {
+    label:'지점내방 SUV 판매대수', parent:'br_suv_rev', type:'computed', formula:'market_suv * br_suv_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 SUV 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_suv_asp: {
+    label:'지점내방 SUV ASP', parent:'br_suv_rev', type:'input',
+    v:[28500000,28956000,29419296,29890005,30368245,30854137,31347803], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 SUV 평균판매가격.',
+  },
+  br_large_rev: {
+    label:'지점내방 대형', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_large_volume * br_large_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 대형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_large_market_ref: {
+    label:'대형 시장판매대수', parent:'br_large_volume', type:'computed', formula:'market_large',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 대형 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_large_share: {
+    label:'지점내방 대형 점유율', parent:'br_large_volume', type:'input',
+    v:[0.026,0.0266,0.0272,0.0278,0.0284,0.029,0.0296], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_large_volume: {
+    label:'지점내방 대형 판매대수', parent:'br_large_rev', type:'computed', formula:'market_large * br_large_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 대형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_large_asp: {
+    label:'지점내방 대형 ASP', parent:'br_large_rev', type:'input',
+    v:[32600000,33121600,33651546,34189970,34737010,35292802,35857487], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 대형 평균판매가격.',
+  },
+  br_midsize_rev: {
+    label:'지점내방 중형', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_midsize_volume * br_midsize_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 중형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_midsize_market_ref: {
+    label:'중형 시장판매대수', parent:'br_midsize_volume', type:'computed', formula:'market_midsize',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 중형 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_midsize_share: {
+    label:'지점내방 중형 점유율', parent:'br_midsize_volume', type:'input',
+    v:[0.031,0.0316,0.0322,0.0328,0.0334,0.034,0.0346], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_midsize_volume: {
+    label:'지점내방 중형 판매대수', parent:'br_midsize_rev', type:'computed', formula:'market_midsize * br_midsize_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 중형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_midsize_asp: {
+    label:'지점내방 중형 ASP', parent:'br_midsize_rev', type:'input',
+    v:[22400000,22758400,23122534,23492495,23868375,24250269,24638273], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 중형 평균판매가격.',
+  },
+  br_compact_rev: {
+    label:'지점내방 준중형', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_compact_volume * br_compact_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 준중형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_compact_market_ref: {
+    label:'준중형 시장판매대수', parent:'br_compact_volume', type:'computed', formula:'market_compact',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 준중형 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_compact_share: {
+    label:'지점내방 준중형 점유율', parent:'br_compact_volume', type:'input',
+    v:[0.03,0.0306,0.0312,0.0318,0.0324,0.033,0.0336], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_compact_volume: {
+    label:'지점내방 준중형 판매대수', parent:'br_compact_rev', type:'computed', formula:'market_compact * br_compact_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 준중형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_compact_asp: {
+    label:'지점내방 준중형 ASP', parent:'br_compact_rev', type:'input',
+    v:[16800000,17068800,17341901,17619371,17901281,18187702,18478705], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 준중형 평균판매가격.',
+  },
+  br_small_rev: {
+    label:'지점내방 소형', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_small_volume * br_small_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 소형 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_small_market_ref: {
+    label:'소형 시장판매대수', parent:'br_small_volume', type:'computed', formula:'market_small',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 소형 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_small_share: {
+    label:'지점내방 소형 점유율', parent:'br_small_volume', type:'input',
+    v:[0.025,0.0256,0.0262,0.0268,0.0274,0.028,0.0286], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_small_volume: {
+    label:'지점내방 소형 판매대수', parent:'br_small_rev', type:'computed', formula:'market_small * br_small_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 소형 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_small_asp: {
+    label:'지점내방 소형 ASP', parent:'br_small_rev', type:'input',
+    v:[11700000,11887200,12077395,12270634,12466964,12666435,12869098], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 소형 평균판매가격.',
+  },
+  br_truck_rev: {
+    label:'지점내방 화물차', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_truck_volume * br_truck_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 화물차 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_truck_market_ref: {
+    label:'화물차 시장판매대수', parent:'br_truck_volume', type:'computed', formula:'market_truck',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 화물차 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_truck_share: {
+    label:'지점내방 화물차 점유율', parent:'br_truck_volume', type:'input',
+    v:[0.023,0.0236,0.0242,0.0248,0.0254,0.026,0.0266], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_truck_volume: {
+    label:'지점내방 화물차 판매대수', parent:'br_truck_rev', type:'computed', formula:'market_truck * br_truck_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 화물차 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_truck_asp: {
+    label:'지점내방 화물차 ASP', parent:'br_truck_rev', type:'input',
+    v:[18800000,19100800,19406413,19716915,20032386,20352904,20678551], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 화물차 평균판매가격.',
+  },
+  br_other_rev: {
+    label:'지점내방 기타', sub:'시장대수 × 점유율 × ASP',
+    parent:'branch_sales', type:'computed', formula:'br_other_volume * br_other_asp',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD',
+    desc:'지점내방 기타 매출 = 판매대수 × 평균판매가격.',
+    bg:'#FFFFFF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#E5E5E8',
+  },
+  br_other_market_ref: {
+    label:'기타 시장판매대수', parent:'br_other_volume', type:'computed', formula:'market_other',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'지점내방 기타 판매대수 계산에 쓰는 공통 시장판매대수.',
+  },
+  br_other_share: {
+    label:'지점내방 기타 점유율', parent:'br_other_volume', type:'input',
+    v:[0.02,0.0206,0.0212,0.0218,0.0224,0.023,0.0236], u:'%', pct:1, c:'#5D68F7',
+    desc:'해당 차급 시장에서 케이카 지점내방 채널이 확보하는 비율.',
+  },
+  br_other_volume: {
+    label:'지점내방 기타 판매대수', parent:'br_other_rev', type:'computed', formula:'market_other * br_other_share',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#7C91FD',
+    desc:'지점내방 기타 판매대수 = 시장판매대수 × 점유율.',
+  },
+  br_other_asp: {
+    label:'지점내방 기타 ASP', parent:'br_other_rev', type:'input',
+    v:[14800000,15036800,15277389,15521827,15770176,16022499,16278859], u:'원/대', c:'#7C91FD',
+    desc:'지점내방 기타 평균판매가격.',
+  },
+  used_car_volume: {
+    label:'중고차 판매대수', sub:'이커머스 + 지점내방 전 차급',
+    parent:'used_car_sales', type:'computed', formula:'SUM(ec_suv_volume, ec_large_volume, ec_midsize_volume, ec_compact_volume, ec_small_volume, ec_truck_volume, ec_other_volume, br_suv_volume, br_large_volume, br_midsize_volume, br_compact_volume, br_small_volume, br_truck_volume, br_other_volume)',
+    v:[0,0,0,0,0,0,0], u:'대', c:'#5D68F7',
+    desc:'매출과 비용이 공유하는 핵심 수량 드라이버.',
+  },
+  auction_sales: {
+    label:'경매 매출', sub:'상품 + 용역',
+    parent:'rev', type:'computed', formula:'auction_product_sales + auction_service_sales',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0',
+    desc:'경매 상품 매출과 경매 용역 매출. 실습 모델에서는 성장률 기반 입력으로 단순화.',
+    bg:'#EDF3FF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#A1B8FF',
+  },
+  auction_product_sales: {label:'경매 상품 매출', parent:'auction_sales', type:'input', v:[42000000000,43680000000,45427200000,47017152000,48662752320,50122634890,51626313937], u:'원', c:'#5D68F7', desc:'경매 상품 매출 가정.'},
+  auction_service_sales: {label:'경매 용역 매출', parent:'auction_sales', type:'input', v:[9000000000,9450000000,9922500000,10369012500,10783773000,11161205055,11551847232], u:'원', c:'#5D68F7', desc:'경매 용역 매출 가정.'},
+  rental_sales: {
+    label:'렌터카 매출', sub:'차량매각 + 장기렌트',
+    parent:'rev', type:'computed', formula:'rental_disposal_sales + longterm_rental_sales',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0',
+    desc:'렌터카 매각 매출과 장기렌트 매출.',
+    bg:'#EDF3FF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#A1B8FF',
+  },
+  rental_disposal_sales: {label:'렌터카 매각 매출', parent:'rental_sales', type:'input', v:[36000000000,37080000000,38192400000,39261787200,40243331880,41249415177,42074403481], u:'원', c:'#5D68F7', desc:'렌터카 매각 매출 가정.'},
+  longterm_rental_sales: {label:'장기렌트 매출', parent:'rental_sales', type:'input', v:[18000000000,18810000000,19656450000,20442708000,21219530904,21962214486,22686967564], u:'원', c:'#5D68F7', desc:'장기렌트 매출 가정.'},
+  service_other_sales: {
+    label:'용역 / 기타 매출', sub:'채널 연동 + 기타',
+    parent:'rev', type:'computed', formula:'ecommerce_service_sales + branch_service_sales + other_sales',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0',
+    desc:'이커머스/지점내방 용역 매출은 각 채널 중고차 매출 대비 비율로 계산.',
+    bg:'#EDF3FF', fg:'#1E2185', sfg:'#5D68F7', bdr:'#A1B8FF',
+  },
+  ecommerce_service_sales: {label:'이커머스 용역 매출', parent:'service_other_sales', type:'computed', formula:'ecommerce_sales * ecommerce_service_rate', v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD', desc:'이커머스 용역 매출 = 이커머스 중고차 매출 × 용역 매출률.'},
+  ecommerce_service_base_ref: {label:'이커머스 중고차 판매', parent:'ecommerce_service_sales', type:'computed', formula:'ecommerce_sales', v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7', desc:'이커머스 용역 매출 계산에 쓰는 채널 매출.'},
+  ecommerce_service_rate: {label:'이커머스 용역 매출률', parent:'ecommerce_service_sales', type:'input', v:[0.008,0.0082,0.0084,0.0086,0.0088,0.009,0.0092], u:'%', pct:1, c:'#5D68F7', desc:'이커머스 중고차 매출 대비 용역 매출 비율.'},
+  branch_service_sales: {label:'지점내방 용역 매출', parent:'service_other_sales', type:'computed', formula:'branch_sales * branch_service_rate', v:[0,0,0,0,0,0,0], u:'원', c:'#7C91FD', desc:'지점내방 용역 매출 = 지점내방 중고차 매출 × 용역 매출률.'},
+  branch_service_base_ref: {label:'지점내방 중고차 판매', parent:'branch_service_sales', type:'computed', formula:'branch_sales', v:[0,0,0,0,0,0,0], u:'원', c:'#5D68F7', desc:'지점내방 용역 매출 계산에 쓰는 채널 매출.'},
+  branch_service_rate: {label:'지점내방 용역 매출률', parent:'branch_service_sales', type:'input', v:[0.006,0.0061,0.0062,0.0063,0.0064,0.0065,0.0066], u:'%', pct:1, c:'#5D68F7', desc:'지점내방 중고차 매출 대비 용역 매출 비율.'},
+  other_sales: {label:'기타 매출', parent:'service_other_sales', type:'input', v:[12000000000,12360000000,12730800000,13112724000,13479880272,13857316920,14203749843], u:'원', c:'#5D68F7', desc:'기타 부가 매출 가정.'},
   total_cost: {
-    label:'비용 합계', sub:'변동 + 고정',
-    parent:'root', type:'computed', formula:'vc + fc',
+    label:'비용 합계', sub:'판매대수 연동 + 고정비',
+    parent:'root', type:'computed', formula:'SUM(inventory_cost, warranty_cost, rental_car_cost, variable_sga, fixed_sga, labor_cost, da)',
     v:[0,0,0,0,0,0,0], u:'원', c:'#374151',
-    desc:'총비용 = 변동원가 + 고정비.',
+    desc:'총비용. 중고차 판매대수와 매출을 공유 드라이버로 사용.',
     bg:'#374151', fg:'#fff', sfg:'#D1D5DB',
   },
-  vc: {
-    label:'변동원가', sub:'Q × 단위원가',
-    parent:'total_cost', type:'computed', formula:'unit_q * unit_cost',
-    v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563',
-    desc:'변동원가 = 수량 × 단위원가. 수량(unit_q)을 매출과 공유.',
-    bg:'#F9FAFB', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB',
-  },
-  unit_cost: {
-    label:'단위 변동원가',
-    parent:'vc', type:'input',
-    v:[600000,620000,640000,660000,680000,700000,720000], u:'원/대', c:'#9CA3AF',
-    desc:'단위 변동원가 — 매출-비용 공유 드라이버 패턴.',
-  },
-  fc: {
-    label:'고정비',
-    parent:'total_cost', type:'input',
-    v:[500000000,525000000,550000000,575000000,600000000,625000000,650000000], u:'원', c:'#6B7280',
-    desc:'고정비 — 인건비+임차+R&D 등.',
-  },
-
-  // ===== 영업이익 (semantic.profit: green-500) =====
+  inventory_cost: {label:'재고자산원가', sub:'판매대수 × 대당 원가', parent:'total_cost', type:'computed', formula:'used_car_volume * unit_inventory_cost', v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563', desc:'중고차 판매의 핵심 원가. 판매대수와 직접 연결.', bg:'#F9FAFB', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB'},
+  inventory_cost_volume_ref: {label:'중고차 판매대수', parent:'inventory_cost', type:'computed', formula:'used_car_volume', v:[0,0,0,0,0,0,0], u:'대', c:'#6B7280', desc:'재고자산원가 계산에 쓰는 공통 판매대수.'},
+  unit_inventory_cost: {label:'중고차 1대당 원가', parent:'inventory_cost', type:'input', v:[18000000,18270000,18544050,18822211,19104544,19391112,19681979], u:'원/대', c:'#6B7280', desc:'중고차 1대당 매입/상품화 원가.'},
+  warranty_cost: {label:'판매보증비', sub:'판매대수 × 대당 보증비', parent:'total_cost', type:'computed', formula:'used_car_volume * warranty_cost_per_unit', v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563', desc:'판매 차량에 붙는 보증 관련 비용.', bg:'#F9FAFB', fg:'#374151', sfg:'#6B7280', bdr:'#D1D5DB'},
+  warranty_cost_volume_ref: {label:'중고차 판매대수', parent:'warranty_cost', type:'computed', formula:'used_car_volume', v:[0,0,0,0,0,0,0], u:'대', c:'#6B7280', desc:'판매보증비 계산에 쓰는 공통 판매대수.'},
+  warranty_cost_per_unit: {label:'대당 보증비', parent:'warranty_cost', type:'input', v:[420000,427560,435256,443091,451066,459186,467451], u:'원/대', c:'#6B7280', desc:'중고차 1대당 보증 관련 비용.'},
+  rental_car_cost: {label:'차량매각원가', parent:'total_cost', type:'computed', formula:'rental_disposal_sales * rental_disposal_cost_rate', v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563', desc:'렌터카 매각 매출에 대응되는 원가.'},
+  rental_car_cost_sales_ref: {label:'렌터카 매각 매출', parent:'rental_car_cost', type:'computed', formula:'rental_disposal_sales', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'차량매각원가 계산에 쓰는 매각 매출.'},
+  rental_disposal_cost_rate: {label:'차량매각원가율', parent:'rental_car_cost', type:'input', v:[0.74,0.735,0.73,0.728,0.725,0.723,0.72], u:'%', pct:1, c:'#6B7280', desc:'렌터카 매각 매출 대비 원가율.'},
+  variable_sga: {label:'변동 판관비', parent:'total_cost', type:'computed', formula:'rev * variable_sga_rate', v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563', desc:'매출 규모에 연동되는 지급수수료, 부품비, 세금과공과 등.'},
+  variable_sga_revenue_ref: {label:'매출 합계', parent:'variable_sga', type:'computed', formula:'rev', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'변동 판관비 계산에 쓰는 매출 합계.'},
+  variable_sga_rate: {label:'변동 판관비율', parent:'variable_sga', type:'input', v:[0.035,0.034,0.033,0.0325,0.032,0.0315,0.031], u:'%', pct:1, c:'#6B7280', desc:'매출 대비 변동 판관비율.'},
+  fixed_sga: {label:'고정 판관비', parent:'total_cost', type:'input', v:[52000000000,53820000000,55703700000,57541922100,59383263607,61164761515,62999704360], u:'원', c:'#6B7280', desc:'임차료, 운반비, 차량유지비 등 고정비성 판관비.'},
+  labor_cost: {label:'인건비', parent:'total_cost', type:'computed', formula:'employee_count * avg_salary', v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563', desc:'필요 인원 × 평균 급여.'},
+  employee_count: {label:'필요 인원', parent:'labor_cost', type:'input', v:[930,960,990,1020,1050,1080,1110], u:'명', c:'#6B7280', desc:'중고차 판매, 경매, 렌탈, 사무/IT/마케팅 인력.'},
+  avg_salary: {label:'평균 급여', parent:'labor_cost', type:'input', v:[62000000,63860000,65775800,67749074,69781546,71874993,74031242], u:'원/명', c:'#6B7280', desc:'1인당 평균 연간 급여.'},
+  da: {label:'감가상각비', parent:'total_cost', type:'input', v:[18500000000,18962500000,19436562500,19903040000,20360809920,20808747738,21266540188], u:'원', c:'#6B7280', desc:'CapEx와 기존 유형자산에서 발생하는 감가상각비.'},
   op_profit: {
-    label:'영업이익', sub:'= 매출 − 비용',
+    label:'영업이익', sub:'매출 − 비용',
     parent:'root', type:'computed', formula:'rev - total_cost',
     v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E',
-    desc:'영업이익 = 매출 − 비용.',
+    desc:'영업이익 = 매출 합계 − 비용 합계.',
     bg:'#22C55E', fg:'#fff', sfg:'#86EFAC',
   },
+  op_profit_revenue_ref: {label:'매출 합계', parent:'op_profit', type:'computed', formula:'rev', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', desc:'영업이익 계산에 쓰는 매출 합계.'},
+  op_profit_cost_ref: {label:'비용 합계', parent:'op_profit', type:'computed', formula:'total_cost', v:[0,0,0,0,0,0,0], u:'원', c:'#4B5563', desc:'영업이익 계산에 쓰는 비용 합계.'},
+  tax: {label:'법인세', parent:'fcff', type:'computed', formula:'MAX(op_profit, 0) * tax_rate', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'영업이익이 양수일 때 적용하는 단순 법인세.'},
+  tax_op_profit_ref: {label:'영업이익', parent:'tax', type:'computed', formula:'op_profit', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', desc:'법인세 계산에 쓰는 영업이익.'},
+  tax_rate: {label:'법인세율', parent:'tax', type:'input', v:[0.24,0.24,0.24,0.24,0.24,0.24,0.24], u:'%', pct:1, c:'#5D68F7', desc:'단순 실습용 법인세율.'},
+  ebiat: {label:'세후영업이익', parent:'fcff', type:'computed', formula:'op_profit - tax', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', desc:'EBIAT = 영업이익 − 법인세.'},
+  ebiat_op_profit_ref: {label:'영업이익', parent:'ebiat', type:'computed', formula:'op_profit', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', desc:'세후영업이익 계산에 쓰는 영업이익.'},
+  ebiat_tax_ref: {label:'법인세', parent:'ebiat', type:'computed', formula:'tax', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'세후영업이익 계산에서 차감하는 법인세.'},
+  nwc: {label:'운전자본', parent:'fcff', type:'computed', formula:'rev * nwc_rate', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'매출 대비 운전자본 필요액.'},
+  nwc_revenue_ref: {label:'매출 합계', parent:'nwc', type:'computed', formula:'rev', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'운전자본 계산에 쓰는 매출 합계.'},
+  nwc_rate: {label:'운전자본율', parent:'nwc', type:'input', v:[0.055,0.055,0.054,0.054,0.053,0.053,0.052], u:'%', pct:1, c:'#5D68F7', desc:'매출 대비 순운전자본 비율.'},
+  change_nwc: {label:'운전자본 증가', parent:'fcff', type:'computed', formula:'nwc - PREV(nwc)', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'해당 연도 운전자본 증가분. 첫해는 기준연도 투자액으로 표시.'},
+  change_nwc_ref: {label:'운전자본', parent:'change_nwc', type:'computed', formula:'nwc', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'운전자본 증가 계산에 쓰는 운전자본 잔액.'},
+  capex: {label:'CapEx', parent:'fcff', type:'input', v:[21000000000,21840000000,22713600000,23576716800,24401901888,25207164650,25963379590], u:'원', c:'#6B7280', desc:'유형자산 투자 및 시스템 투자 가정.'},
+  da_fcff_ref: {label:'감가상각비', parent:'fcff', type:'computed', formula:'da', v:[0,0,0,0,0,0,0], u:'원', c:'#6B7280', desc:'FCFF 계산에서 더하는 감가상각비.'},
+  fcff: {
+    label:'FCFF', sub:'EBIAT + D&A − CapEx − ΔNWC',
+    parent:'root', type:'computed', formula:'ebiat + da - capex - change_nwc',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E',
+    desc:'기업가치 산정에 사용하는 단순 FCFF.',
+    bg:'#ECFDF5', fg:'#166534', sfg:'#22C55E', bdr:'#86EFAC',
+  },
+  valuation: {
+    label:'Valuation', sub:'DCF: FCFF + Terminal Value',
+    parent:'root', type:'computed', formula:'enterprise_value',
+    v:[0,0,0,0,0,0,0], u:'원', c:'#1E2185', point:1,
+    desc:'FCFF, WACC, Terminal Growth, 순차입금, 주식수를 연결한 DCF 밸류에이션 구조.',
+    bg:'#1E2185', fg:'#fff', sfg:'#A1B8FF',
+  },
+  wacc: {label:'WACC', parent:'valuation', type:'input', v:[0.085,0.085,0.084,0.084,0.083,0.083,0.082], u:'%', pct:1, c:'#5D68F7', desc:'DCF 할인율.'},
+  terminal_growth: {label:'Terminal Growth', parent:'valuation', type:'input', v:[0.02,0.02,0.02,0.02,0.02,0.02,0.02], u:'%', pct:1, c:'#5D68F7', desc:'영구성장률.'},
+  discount_factor: {label:'Discount Factor', parent:'valuation', type:'input', v:[0.922,0.850,0.785,0.724,0.669,0.619,0.573], u:'x', c:'#5D68F7', desc:'연도별 할인계수. Excel 재구현 시 WACC와 기간으로 계산식화.'},
+  pv_fcff: {label:'PV of FCFF', parent:'valuation', type:'computed', formula:'fcff * discount_factor', v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0', desc:'연도별 FCFF 현재가치.'},
+  terminal_value: {label:'Terminal Value', parent:'valuation', type:'computed', formula:'fcff * (1 + terminal_growth) / (wacc - terminal_growth)', v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0', desc:'각 연도 FCFF를 기준으로 계산한 Gordon Growth Terminal Value.'},
+  pv_terminal_value: {label:'PV of Terminal Value', parent:'valuation', type:'computed', formula:'terminal_value * discount_factor', v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0', desc:'Terminal Value 현재가치.'},
+  enterprise_value: {label:'Enterprise Value', parent:'valuation', type:'computed', formula:'SUMALL(pv_fcff) + LAST(pv_terminal_value)', v:[0,0,0,0,0,0,0], u:'원', c:'#1E2185', point:1, desc:'기업가치 = 명시적 예측기간 PV of FCFF 합계 + 최종연도 Terminal Value 현재가치. 기준일의 단일 산출값.'},
+  net_debt: {label:'순차입금 / 조정', parent:'valuation', type:'input', v:[145000000000,140650000000,136430500000,132337585000,128367457450,124516433726,120780940714], u:'원', c:'#6B7280', desc:'순차입금 및 가치 조정 항목.'},
+  equity_value: {label:'Equity Value', parent:'valuation', type:'computed', formula:'enterprise_value - FIRST(net_debt)', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', point:1, desc:'주주가치 = 기업가치 − 기준일 순차입금/조정. 기준일의 단일 산출값.'},
+  shares_outstanding: {label:'주식수', parent:'valuation', type:'input', v:[48200000,48200000,48200000,48200000,48200000,48200000,48200000], u:'주', c:'#5D68F7', desc:'주당가치 계산용 희석 주식수.'},
+  value_per_share: {label:'주당가치', parent:'valuation', type:'computed', formula:'equity_value / FIRST(shares_outstanding)', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', point:1, desc:'주당가치 = Equity Value / 기준일 주식수. 기준일의 단일 산출값.'},
+  pv_fcff_fcff_ref: {label:'FCFF', parent:'pv_fcff', type:'computed', formula:'fcff', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', desc:'PV of FCFF 계산에 쓰는 FCFF.'},
+  pv_fcff_discount_ref: {label:'Discount Factor', parent:'pv_fcff', type:'computed', formula:'discount_factor', v:[0,0,0,0,0,0,0], u:'x', c:'#5D68F7', desc:'PV of FCFF 계산에 쓰는 할인계수.'},
+  terminal_value_fcff_ref: {label:'FCFF', parent:'terminal_value', type:'computed', formula:'fcff', v:[0,0,0,0,0,0,0], u:'원', c:'#22C55E', desc:'Terminal Value 계산에 쓰는 FCFF.'},
+  terminal_value_wacc_ref: {label:'WACC', parent:'terminal_value', type:'computed', formula:'wacc', v:[0,0,0,0,0,0,0], u:'%', pct:1, c:'#5D68F7', desc:'Terminal Value 계산에 쓰는 할인율.'},
+  terminal_value_growth_ref: {label:'Terminal Growth', parent:'terminal_value', type:'computed', formula:'terminal_growth', v:[0,0,0,0,0,0,0], u:'%', pct:1, c:'#5D68F7', desc:'Terminal Value 계산에 쓰는 영구성장률.'},
+  pv_terminal_value_tv_ref: {label:'Terminal Value', parent:'pv_terminal_value', type:'computed', formula:'terminal_value', v:[0,0,0,0,0,0,0], u:'원', c:'#3332D0', desc:'PV of Terminal Value 계산에 쓰는 Terminal Value.'},
+  pv_terminal_value_discount_ref: {label:'Discount Factor', parent:'pv_terminal_value', type:'computed', formula:'discount_factor', v:[0,0,0,0,0,0,0], u:'x', c:'#5D68F7', desc:'PV of Terminal Value 계산에 쓰는 할인계수.'},
 };
 
 // ============================================================
@@ -289,8 +726,16 @@ const D={
 let INPUT_KEYS=new Set();
 let TREE=null;
 let SIM_SECS=[];  // 초기 빈 배열, buildSimSecs()이 채움 (선언 순서 의존성 회피)
+let ROOT_ID='root';
+let REVENUE_ROOT_ID='rev';
+
+function rebuildSemanticIds(){
+  ROOT_ID=Object.keys(D).find(k=>D[k].parent==null)||'root';
+  REVENUE_ROOT_ID=Object.keys(D).find(k=>D[k].role==='revenue'||D[k].role==='revenue_root')||(D.rev?'rev':ROOT_ID);
+}
 
 function rebuildIndexes(){
+  rebuildSemanticIds();
   INPUT_KEYS = new Set(Object.keys(D).filter(k=>D[k].type==='input'));
   TREE = buildTree();
   if(typeof buildSimSecs==='function') SIM_SECS = buildSimSecs();
@@ -316,7 +761,7 @@ function buildTree(){
     if(kids.length) n.children=kids.map(makeNode).filter(x=>x);
     return n;
   }
-  return makeNode('root');
+  return makeNode(ROOT_ID);
 }
 
 // 헬퍼: 기존 N()/DR()는 buildTree가 대체. 호환을 위해 stub 유지.
@@ -328,7 +773,7 @@ rebuildIndexes();
 const NW=170,NH=48,DH=40,GX=22,GY=22,PAD=40,ICON_W=20;
 const dpr=window.devicePixelRatio||1;
 let cvs,ctx,W,H,cam={x:0,y:0,s:1};
-let openSet=new Set(['root','rev']);
+let openSet=new Set(['root','rev','used_car_sales','ecommerce_sales','branch_sales','total_cost','fcff','valuation']);
 let positions={},allNodes=[],hoverId=null,hoverChart=null,selectedId=null;
 
 function nodeH(n){return n.drv?DH:NH}
@@ -396,8 +841,36 @@ let parentMap={};
 function renderAll(){allNodes=[];positions={};parentMap={};doLayout(TREE,PAD,PAD,null);ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);ctx.translate(cam.x,cam.y);ctx.scale(cam.s,cam.s);drawConns(TREE,null);drawNode(TREE);ctx.restore()}
 
 // ============ CHART POPUP ============
-function fmtNum(v,u,pct){if(pct)return(v*100).toFixed(1)+'%';if(u==='원'||u==='원/건'||u==='원/대'||u==='원/월'){if(Math.abs(v)>=1e8)return(v/1e8).toFixed(1)+'억';if(Math.abs(v)>=1e4)return(v/1e4).toFixed(0)+'만';return v.toLocaleString('ko-KR')}return v.toLocaleString('ko-KR')}
-function fmtFull(v,u,pct){if(pct)return(v*100).toFixed(1)+'%';return v.toLocaleString('ko-KR')}
+function fmtSmart(v,pct){
+  if(typeof v!=='number'||!isFinite(v)) return '-';
+  if(pct) return (v*100).toFixed(1)+'%';
+  if(Math.abs(v)>=10) return Math.round(v).toLocaleString('ko-KR');
+  return (Math.round(v*100)/100).toLocaleString('ko-KR',{maximumFractionDigits:2});
+}
+function fmtNum(v,u,pct){
+  if(pct) return fmtSmart(v,1);
+  if(u==='원'||u==='원/건'||u==='원/대'||u==='원/월'){
+    if(Math.abs(v)>=1e12)return(v/1e12).toFixed(1)+'조';
+    if(Math.abs(v)>=1e8)return(v/1e8).toFixed(1)+'억';
+    if(Math.abs(v)>=1e4)return(v/1e4).toFixed(0)+'만';
+  }
+  return fmtSmart(v,0);
+}
+function fmtFull(v,u,pct){return fmtSmart(v,pct)}
+function renderPointDataset(sec,ds,d){
+  let val=(d.v&&d.v.length)?d.v[0]:0;
+  let card=document.createElement('div');
+  card.style.cssText='margin:14px 0 8px;padding:22px 24px;border:1px solid #E5E5E8;border-radius:8px;background:#F8F8FA;display:flex;align-items:baseline;justify-content:space-between;gap:20px';
+  let left=document.createElement('div');
+  left.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:6px">Pinpoint output</div><div style="font-size:18px;font-weight:700;color:#222">'+(ds.label||d.label)+'</div>';
+  let right=document.createElement('div');
+  right.style.cssText='font-family:Arial,sans-serif;font-size:24px;font-weight:700;color:'+(d.c||'#222')+';text-align:right;white-space:nowrap';
+  right.textContent=fmtFull(val,d.u,d.pct);
+  card.appendChild(left);card.appendChild(right);sec.appendChild(card);
+  let tbl=document.createElement('table');tbl.className='chart-table';
+  tbl.innerHTML='<tr><th style="text-align:left">항목</th><th>값</th></tr><tr><td style="text-align:left;color:#888;font-size:9px">'+(ds.label||d.label)+'</td><td>'+fmtFull(val,d.u,d.pct)+'</td></tr>';
+  sec.appendChild(tbl);
+}
 let _currentChartNode=null;
 function showChart(node){
   _currentChartNode=node;
@@ -416,6 +889,12 @@ function showChart(node){
     let sec=document.createElement('div');sec.className='ds-section';
     if(datasets.length>1||d.desc){let h=document.createElement('div');h.className='ds-label';h.textContent=ds.label;sec.appendChild(h)}
     if(d.desc){let desc=document.createElement('div');desc.className='ds-desc';desc.textContent=d.desc;sec.appendChild(desc)}
+    if(d.point){
+      renderPointDataset(sec,ds,d);
+      let ut=document.createElement('div');ut.className='chart-unit';ut.textContent='단위: '+u;sec.appendChild(ut);
+      body.appendChild(sec);
+      return;
+    }
     let bars=document.createElement('div');bars.className='chart-bars';
     vals.forEach((v,i)=>{
       let wr=document.createElement('div');wr.className='chart-bar-wrap';
@@ -423,10 +902,12 @@ function showChart(node){
       let br=document.createElement('div');br.className='chart-bar';
       let ht=pct?Math.max((v/Math.max(...vals.map(Math.abs)))*130,2):Math.max((Math.abs(v)/maxV)*130,2);
       br.style.height=ht+'px';br.style.background=color;
+      if(_isFc(i)) br.style.opacity='0.5';
       let yr=document.createElement('div');yr.className='chart-yr';yr.textContent=YRS[i].slice(2)+'년';
+      if(_isFc(i)) yr.style.color='#3332D0';
 
       // Make clickable for rev node (insert bridge below)
-      if(ds.key==='rev'){
+      if(ds.key===REVENUE_ROOT_ID){
         wr.style.cursor='pointer';
         wr.title=YRS[i]+'→'+YRS[i+1]+' 브릿지 보기';
         wr.onclick=function(){toggleBridgeInline(body,sec,i,wr)};
@@ -435,12 +916,15 @@ function showChart(node){
     sec.appendChild(bars);
 
     let tbl=document.createElement('table');tbl.className='chart-table';
-    let th=document.createElement('tr');th.innerHTML='<th></th>'+YRS.map(y=>'<th>'+y+'</th>').join('');tbl.appendChild(th);
+    let band=document.createElement('tr');
+    band.innerHTML='<th></th><th colspan="'+HIST_N+'" style="text-align:center;color:#888;background:#F3F4F6">Historical</th><th colspan="'+(YRS.length-HIST_N)+'" style="text-align:center;color:#3332D0;background:#F4F7FF">Forecast</th>';
+    tbl.appendChild(band);
+    let th=document.createElement('tr');th.innerHTML='<th></th>'+YRS.map((y,i)=>'<th style="'+(_isFc(i)?'background:#F4F7FF;color:#3332D0':'')+'">'+y+'</th>').join('');tbl.appendChild(th);
     let tr=document.createElement('tr');tr.innerHTML='<td style="text-align:left;color:#888;font-size:9px">'+ds.label+'</td>'+vals.map(v=>'<td>'+fmtFull(v,u,pct)+'</td>').join('');tbl.appendChild(tr);
     sec.appendChild(tbl);
     let ut=document.createElement('div');ut.className='chart-unit';ut.textContent='단위: '+u;sec.appendChild(ut);
 
-    if(ds.key==='rev'){
+    if(ds.key===REVENUE_ROOT_ID){
       let hint=document.createElement('div');
       hint.style.cssText='font-size:10px;color:#aaa;margin-top:8px;text-align:center';
       hint.textContent='연도 막대를 클릭하면 브릿지 차트가 펼쳐집니다. 두 연도를 클릭하면 해당 구간의 브릿지를 볼 수 있습니다.';
@@ -513,11 +997,15 @@ function renderBridge(fi, ti, parentSec){
   // 색상은 DS 토큰 (primary scale + neutrals) 사용 권장.
   // ============================================================
   const BMS={
-    '예시 BM':{v:D.rev.v.slice(), c:'#1E2185'},  // semantic.revenue (회사별로 여러 BM으로 분해)
+    '이커머스 중고차':{v:D.ecommerce_sales.v.slice(), c:'#5D68F7'},  // primary.500
+    '지점내방 중고차':{v:D.branch_sales.v.slice(), c:'#7C91FD'},      // primary.400
+    '경매':{v:D.auction_sales.v.slice(), c:'#3332D0'},                 // primary.700
+    '렌터카':{v:D.rental_sales.v.slice(), c:'#A1B8FF'},                // primary.300
+    '용역 / 기타':{v:D.service_other_sales.v.slice(), c:'#1E2185'},    // primary.900
   };
-  const TOT=D.rev.v.slice();
+  const TOT=(D[REVENUE_ROOT_ID]||D[ROOT_ID]).v.slice();
   const bnames=Object.keys(BMS);
-  const bfmt=v=>{let a=Math.abs(v),s=v<0?'-':'';if(a>=1e12)return s+(a/1e12).toFixed(1)+'조';if(a>=1e8)return s+(a/1e8).toFixed(0)+'억';if(a>=1e7)return s+(a/1e7).toFixed(0)+'천만';return s+Math.round(a/1e6)+'백만'};
+  const bfmt=v=>fmtNum(v,(D[REVENUE_ROOT_ID]&&D[REVENUE_ROOT_ID].u)||'원',0);
 
   let fromTotal=TOT[fi], toTotal=TOT[ti];
   let deltas=bnames.map(n=>BMS[n].v[ti]-BMS[n].v[fi]);
@@ -638,6 +1126,12 @@ function refreshOpenChart(){
     let sec=document.createElement('div');sec.className='ds-section';
     if(datasets.length>1||d.desc){let h=document.createElement('div');h.className='ds-label';h.textContent=ds.label;sec.appendChild(h)}
     if(d.desc){let desc=document.createElement('div');desc.className='ds-desc';desc.textContent=d.desc;sec.appendChild(desc)}
+    if(d.point){
+      renderPointDataset(sec,ds,d);
+      let ut=document.createElement('div');ut.className='chart-unit';ut.textContent='단위: '+u;sec.appendChild(ut);
+      body.appendChild(sec);
+      return;
+    }
     let bars=document.createElement('div');bars.className='chart-bars';
     vals.forEach((v,i)=>{
       let wr=document.createElement('div');wr.className='chart-bar-wrap';
@@ -645,19 +1139,24 @@ function refreshOpenChart(){
       let br=document.createElement('div');br.className='chart-bar';
       let ht=pct?Math.max((Math.abs(v)/Math.max(...vals.map(Math.abs)))*130,2):Math.max((Math.abs(v)/maxV)*130,2);
       br.style.height=ht+'px';br.style.background=color;
+      if(_isFc(i)) br.style.opacity='0.5';
       let yr=document.createElement('div');yr.className='chart-yr';yr.textContent=YRS[i].slice(2)+'년';
-      if(ds.key==='rev'){
+      if(_isFc(i)) yr.style.color='#3332D0';
+      if(ds.key===REVENUE_ROOT_ID){
         wr.style.cursor='pointer';
         wr.onclick=function(){toggleBridgeInline(body,sec,i,wr)};
       }
       wr.appendChild(vl);wr.appendChild(br);wr.appendChild(yr);bars.appendChild(wr)});
     sec.appendChild(bars);
     let tbl=document.createElement('table');tbl.className='chart-table';
-    let th=document.createElement('tr');th.innerHTML='<th></th>'+YRS.map(y=>'<th>'+y+'</th>').join('');tbl.appendChild(th);
+    let band=document.createElement('tr');
+    band.innerHTML='<th></th><th colspan="'+HIST_N+'" style="text-align:center;color:#888;background:#F3F4F6">Historical</th><th colspan="'+(YRS.length-HIST_N)+'" style="text-align:center;color:#3332D0;background:#F4F7FF">Forecast</th>';
+    tbl.appendChild(band);
+    let th=document.createElement('tr');th.innerHTML='<th></th>'+YRS.map((y,i)=>'<th style="'+(_isFc(i)?'background:#F4F7FF;color:#3332D0':'')+'">'+y+'</th>').join('');tbl.appendChild(th);
     let tr=document.createElement('tr');tr.innerHTML='<td style="text-align:left;color:#888;font-size:9px">'+ds.label+'</td>'+vals.map(v=>'<td>'+fmtFull(v,u,pct)+'</td>').join('');tbl.appendChild(tr);
     sec.appendChild(tbl);
     let ut=document.createElement('div');ut.className='chart-unit';ut.textContent='단위: '+u;sec.appendChild(ut);
-    if(ds.key==='rev'){
+    if(ds.key===REVENUE_ROOT_ID){
       let hint=document.createElement('div');
       hint.style.cssText='font-size:10px;color:#aaa;margin-top:8px;text-align:center';
       hint.textContent='연도 막대를 클릭하면 브릿지 차트가 펼쳐집니다. 두 연도를 클릭하면 해당 구간의 브릿지를 볼 수 있습니다.';
@@ -682,6 +1181,7 @@ function showRevTable(){
 
   function row(label,key,indent,bold,color,parentGroup){
     let vals=D[key]?D[key].v:[];if(!vals.length)return;
+    let isPct=D[key]&&D[key].pct;
     let tr=document.createElement('tr');
     tr.style.borderBottom='0.5px solid #F9FAFB';
     if(bold)tr.style.background='#F9FAFB';
@@ -694,7 +1194,7 @@ function showRevTable(){
     if(isParent)c+='<span class="_tgl" data-g="'+toggleId+'" style="display:inline-block;width:14px;font-size:9px;color:#aaa">▼</span>';
     c+=label+'</td>';
     vals.forEach(v=>{
-      c+='<td style="text-align:right;padding:5px 8px;font-size:11px;font-family:Arial,sans-serif;color:'+(color||'#444')+';font-weight:'+(bold?'600':'400')+'">'+fW(v)+'</td>';
+      c+='<td style="text-align:right;padding:5px 8px;font-size:11px;font-family:Arial,sans-serif;color:'+(color||'#444')+';font-weight:'+(bold?'600':'400')+'">'+(isPct?(v*100).toFixed(1)+'%':fW(v))+'</td>';
     });
     tr.innerHTML=c;
     if(isParent){
@@ -826,7 +1326,7 @@ cvs.addEventListener('wheel',e=>{e.preventDefault();let f=e.deltaY<0?1.08:1/1.08
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePopup();closeAssum();closeRevTable()}});
 function zoomBtn(d){let ns=cam.s*(d>0?1.15:1/1.15);ns=Math.max(0.15,Math.min(4,ns));let cx=W/2,cy=H/2,wx=(cx-cam.x)/cam.s,wy=(cy-cam.y)/cam.s;cam.s=ns;cam.x=cx-wx*cam.s;cam.y=cy-wy*cam.s;document.getElementById('zoom-label').textContent=Math.round(cam.s*100)+'%';renderAll()}
 function fitAll(){nodeOffsets={};allNodes=[];positions={};doLayout(TREE,PAD,PAD);let minX=1e9,minY=1e9,maxX=0,maxY=0;Object.values(positions).forEach(p=>{if(p.x<minX)minX=p.x;if(p.y<minY)minY=p.y;if(p.x+p.w>maxX)maxX=p.x+p.w;if(p.y+p.h>maxY)maxY=p.y+p.h});maxX+=40;maxY+=40;let tw=maxX-minX+PAD*2,th=maxY-minY+PAD*2;cam.s=Math.min(W/tw,H/th,2)*.9;cam.x=W/2-(minX+maxX)/2*cam.s;cam.y=H/2-(minY+maxY)/2*cam.s;document.getElementById('zoom-label').textContent=Math.round(cam.s*100)+'%';renderAll()}
-function toggleAll(open){nodeOffsets={};function walk(n){if(canToggle(n)){if(open)openSet.add(n.id);else if(n.id!=='root'&&n.id!=='rev')openSet.delete(n.id)}if(n.children)n.children.forEach(walk)}walk(TREE);if(!open){openSet.add('root');openSet.add('rev')}fitAll()}
+function toggleAll(open){nodeOffsets={};function walk(n){if(canToggle(n)){if(open)openSet.add(n.id);else if(n.id!==ROOT_ID&&n.id!==REVENUE_ROOT_ID)openSet.delete(n.id)}if(n.children)n.children.forEach(walk)}walk(TREE);if(!open){openSet.add(ROOT_ID);openSet.add(REVENUE_ROOT_ID)}fitAll()}
 function closeAssum(){document.getElementById('assumOverlay').style.display='none'}
 function showAssumptions(){
   // ========== 가정변수 일람 — D에서 자동 생성 ==========
@@ -856,23 +1356,6 @@ function showAssumptions(){
 
   let body=document.getElementById('assumBody');
   body.innerHTML='';
-  const bfmt=v=>{
-    if(typeof v!=='number')return'-';
-    if(v===0)return'-';
-    let a=Math.abs(v),s=v<0?'-':'';
-    if(a>=1e8)return s+(a/1e8).toFixed(1)+'억';
-    if(a>=1e6)return s+(a/1e6).toFixed(1)+'백만';
-    if(a>=1e4)return s+(a/1e4).toFixed(1)+'만';
-    if(a<1&&a>0)return(v*100).toFixed(1)+'%';
-    return v.toLocaleString('ko-KR');
-  };
-  const fullFmt=(v,pct)=>{
-    if(typeof v!=='number')return'-';
-    if(v===0)return'-';
-    if(pct)return(v*100).toFixed(2)+'%';
-    return v.toLocaleString('ko-KR');
-  };
-
   sections.forEach(sec=>{
     let div=document.createElement('div');
     div.style.cssText='margin-bottom:20px';
@@ -884,7 +1367,7 @@ function showAssumptions(){
     let tbl=document.createElement('table');
     tbl.style.cssText='width:100%;border-collapse:collapse';
     let th=document.createElement('tr');
-    th.innerHTML='<th style="text-align:left;font-size:10px;color:#aaa;padding:4px 6px;font-weight:400;width:160px">변수</th><th style="text-align:left;font-size:10px;color:#aaa;padding:4px 6px;font-weight:400;width:120px">비고</th>'+YRS.map(y=>'<th style="text-align:right;font-size:10px;color:#aaa;padding:4px 6px;font-weight:400;width:80px">'+y+'</th>').join('');
+    th.innerHTML='<th style="text-align:left;font-size:10px;color:#aaa;padding:4px 6px;font-weight:400;width:160px">변수</th><th style="text-align:center;font-size:10px;color:#aaa;padding:4px 6px;font-weight:400;width:52px">설명</th>'+YRS.map((y,i)=>'<th style="text-align:right;font-size:10px;color:'+(_isFc(i)?'#3332D0':'#aaa')+';background:'+(_isFc(i)?'#F4F7FF':'transparent')+';padding:4px 6px;font-weight:400;width:80px">'+y+'</th>').join('');
     tbl.appendChild(th);
 
     sec.items.forEach(item=>{
@@ -894,9 +1377,9 @@ function showAssumptions(){
       tr.style.cssText='border-bottom:0.5px solid #F9FAFB';
       let pct=d.pct;
       let cells='<td style="font-size:11px;padding:5px 6px;color:#333;font-weight:500">'+item.label+'</td>';
-      cells+='<td style="font-size:10px;padding:5px 6px;color:#aaa">'+item.note+'</td>';
+      cells+='<td style="text-align:center;padding:5px 6px"><button onclick="showVarDesc(\''+item.key+'\')" title="가정 설명 보기" style="width:20px;height:20px;border:1px solid #D1D5DB;border-radius:50%;background:#fff;color:#5D68F7;font-size:11px;font-weight:700;cursor:pointer;line-height:18px">i</button></td>';
       d.v.forEach((v,i)=>{
-        cells+='<td style="text-align:right;font-size:11px;padding:5px 6px;color:#444;font-weight:400;font-family:Arial,sans-serif">'+fullFmt(v,pct)+'</td>';
+        cells+='<td style="text-align:right;font-size:11px;padding:5px 6px;color:#444;background:'+(_isFc(i)?'#F4F7FF':'transparent')+';font-weight:400;font-family:Arial,sans-serif">'+fmtFull(v,d.u,pct)+'</td>';
       });
       tr.innerHTML=cells;
       tbl.appendChild(tr);
@@ -914,6 +1397,28 @@ function showAssumptions(){
 
   let _aEl=document.getElementById('assumOverlay');_aEl.style.right=(document.getElementById('simPanel').offsetWidth||0)+'px';_aEl.style.display='flex';
 }
+
+function _parseDesc(desc){
+  let raw=String(desc||'').trim();
+  let tag='기타';
+  let m=raw.match(/^\[([^\]]+)\]\s*/);
+  if(m){tag=m[1];raw=raw.slice(m[0].length).trim()}
+  let bullets=raw?raw.split(/(?<=\.)\s+/).map(s=>s.trim()).filter(Boolean):['설명이 입력되지 않았음.'];
+  return {tag,bullets};
+}
+function showVarDesc(key){
+  let d=D[key]; if(!d)return;
+  let parsed=_parseDesc(d.desc);
+  let tagColor=parsed.tag.includes('객관')?'#6B7280':parsed.tag.includes('주관')?'#3332D0':'#8A5A2F';
+  document.getElementById('varDescTitle').textContent=d.label||key;
+  document.getElementById('varDescBody').innerHTML=
+    '<div style="display:inline-block;margin:4px 0 12px;padding:3px 8px;border-radius:999px;background:'+tagColor+'18;color:'+tagColor+';font-size:11px;font-weight:600">'+parsed.tag+'</div>'+
+    '<ul style="margin:0;padding-left:18px;color:#444;font-size:13px;line-height:1.7">'+parsed.bullets.map(b=>'<li>'+b.replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]))+'</li>').join('')+'</ul>';
+  let el=document.getElementById('varDescOverlay');
+  el.style.right=(document.getElementById('simPanel').offsetWidth||0)+'px';
+  el.style.display='flex';
+}
+function closeVarDesc(){document.getElementById('varDescOverlay').style.display='none'}
 
 // ============================================================
 // 노드 편집 UI (Full 모드: 추가·삭제·수식 편집)
@@ -1381,8 +1886,25 @@ document.addEventListener('keydown',function(e){
 // ============================================================
 // localStorage 영속화 (편집 결과 자동 저장 / 페이지 재방문 시 복원)
 // ============================================================
-const _STORAGE_KEY='fm_model_state_v1';
+function _stableJson(v){
+  if(Array.isArray(v)) return '['+v.map(_stableJson).join(',')+']';
+  if(v&&typeof v==='object'){
+    return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+_stableJson(v[k])).join(',')+'}';
+  }
+  return JSON.stringify(v);
+}
+function _hashString(s){
+  let h=2166136261;
+  for(let i=0;i<s.length;i++){
+    h^=s.charCodeAt(i);
+    h=Math.imul(h,16777619);
+  }
+  return (h>>>0).toString(36);
+}
+const _MODEL_ID='kcar_2023_v1';
+const _STORAGE_KEY='fm_model_state_'+_MODEL_ID;
 let _DRAFT_D=null, _DRAFT_DEFAULTS_S=null;  // 초안 스냅샷 (리셋용)
+let _SOURCE_SIGNATURE=null;
 let _saveTimer=null;
 
 // D 직렬화 (캐시 필드 제외)
@@ -1393,7 +1915,7 @@ function _serializeD(){
     out[k]={
       label:d.label, sub:d.sub, parent:d.parent, type:d.type, formula:d.formula,
       v:d.v?d.v.slice():null, u:d.u, desc:d.desc, c:d.c, pct:d.pct,
-      bg:d.bg, fg:d.fg, sfg:d.sfg, bdr:d.bdr,
+      bg:d.bg, fg:d.fg, sfg:d.sfg, bdr:d.bdr, point:d.point,
     };
   }
   return out;
@@ -1403,6 +1925,7 @@ function snapshotDraft(){
   _DRAFT_D=_serializeD();
   _DRAFT_DEFAULTS_S={};
   for(let k in DEFAULTS_S) _DRAFT_DEFAULTS_S[k]=DEFAULTS_S[k].slice();
+  _SOURCE_SIGNATURE=_hashString(_stableJson({D:_DRAFT_D,DEFAULTS_S:_DRAFT_DEFAULTS_S,YRS:YRS,HIST_N:HIST_N}));
 }
 
 function saveToStorage(){
@@ -1416,7 +1939,7 @@ function _doSave(){
     for(let k in SV) svObj[k]=SV[k].slice();
     let defObj={};
     for(let k in DEFAULTS_S) defObj[k]=DEFAULTS_S[k].slice();
-    let payload={version:1, D:_serializeD(), SV:svObj, DEFAULTS_S:defObj};
+    let payload={version:2, modelId:_MODEL_ID, sourceSignature:_SOURCE_SIGNATURE, D:_serializeD(), SV:svObj, DEFAULTS_S:defObj};
     localStorage.setItem(_STORAGE_KEY, JSON.stringify(payload));
   } catch(e){ console.warn('Storage save 실패:',e); }
 }
@@ -1426,7 +1949,7 @@ function loadFromStorage(){
     let s=localStorage.getItem(_STORAGE_KEY);
     if(!s) return false;
     let p=JSON.parse(s);
-    if(!p || p.version!==1 || !p.D) return false;
+    if(!p || p.version!==2 || p.modelId!==_MODEL_ID || p.sourceSignature!==_SOURCE_SIGNATURE || !p.D) return false;
     // D 교체
     for(let k in D) delete D[k];
     Object.assign(D, p.D);
@@ -1472,15 +1995,22 @@ resize();fitAll();updateSelectedToolbar();
 // SV (현재 슬라이더 상태)와 비교 기준. 슬라이더의 주황색 마크 위치.
 // "기본값" 버튼은 SV ← DEFAULTS_S 복사.
 //
-// INPUT_KEYS에 등록한 모든 변수가 여기에 있어야 함.
-// 결과 변수는 simCalc()이 계산하므로 여기 둘 필요 없음.
+// D의 input 노드 v에서 자동 추출한다. 이중 입력으로 인한 불일치를 막기 위해
+// 별도 DEFAULTS_S 객체를 수기로 작성하지 않음.
 // ============================================================
-const DEFAULTS_S={
-  unit_q:    [100,120,150,180,220,260,300],
-  unit_price:[1000000,1050000,1100000,1150000,1200000,1250000,1300000],
-  unit_cost: [600000,620000,640000,660000,680000,700000,720000],
-  fc:        [500000000,525000000,550000000,575000000,600000000,625000000,650000000],
-};
+function deriveDefaultsFromD(){
+  let out={};
+  for(let k in D){
+    if(D[k].type==='input'){
+      let arr=(D[k].v||[]).slice();
+      while(arr.length<YRS.length) arr.push(0);
+      arr.length=YRS.length;
+      out[k]=arr;
+    }
+  }
+  return out;
+}
+const DEFAULTS_S=deriveDefaultsFromD();
 
 let SV={},SR={};for(let k in DEFAULTS_S)SV[k]=DEFAULTS_S[k].slice();
 
@@ -1601,6 +2131,72 @@ function extractDeps(ast, set){
   return set;
 }
 
+function evalAstAt(ast, env, i, ctx){
+  switch(ast.kind){
+    case 'num': return ast.val;
+    case 'ref': {
+      if(ctx&&ast.name===ctx.self&&ctx.out&&ctx.out[i]!==undefined) return ctx.out[i];
+      let v=env[ast.name];
+      if(v===undefined) throw new Error('미정의 변수: '+ast.name);
+      return Number(v[i])||0;
+    }
+    case 'neg': return -evalAstAt(ast.x,env,i,ctx);
+    case 'bin': {
+      let x=evalAstAt(ast.l,env,i,ctx), y=evalAstAt(ast.r,env,i,ctx);
+      if(ast.op==='+') return x+y;
+      if(ast.op==='-') return x-y;
+      if(ast.op==='*') return x*y;
+      if(ast.op==='/') return y===0?0:x/y;
+      return 0;
+    }
+    case 'cmp': {
+      let x=evalAstAt(ast.l,env,i,ctx), y=evalAstAt(ast.r,env,i,ctx);
+      if(ast.op==='==') return x===y?1:0;
+      if(ast.op==='!=') return x!==y?1:0;
+      if(ast.op==='<') return x<y?1:0;
+      if(ast.op==='>') return x>y?1:0;
+      if(ast.op==='<=') return x<=y?1:0;
+      if(ast.op==='>=') return x>=y?1:0;
+      return 0;
+    }
+    case 'fn': {
+      let fn=ast.name.toUpperCase();
+      if(fn==='PREV'){
+        if(ast.args.length!==1) throw new Error('PREV는 1개 인자 필요');
+        if(i===0) return 0;
+        if(ast.args[0].kind==='ref'&&ctx&&ast.args[0].name===ctx.self) return ctx.out[i-1]||0;
+        return evalAstAt(ast.args[0],env,i-1,ctx);
+      }
+      let args=ast.args.map(a=>evalAstAt(a,env,i,ctx));
+      if(fn==='SUM') return args.reduce((s,a)=>s+a,0);
+      if(fn==='MIN') return Math.min(...args);
+      if(fn==='MAX') return Math.max(...args);
+      if(fn==='AVG') return args.reduce((s,a)=>s+a,0)/args.length;
+      if(fn==='IF'){
+        if(ast.args.length!==3) throw new Error('IF는 3개 인자 필요');
+        return evalAstAt(ast.args[0],env,i,ctx)?evalAstAt(ast.args[1],env,i,ctx):evalAstAt(ast.args[2],env,i,ctx);
+      }
+      if(fn==='SUMALL'){
+        return ast.args.reduce((sum,arg)=>{
+          let arr=evalAst(arg,env);
+          return sum+arr.reduce((s,v)=>s+(Number(v)||0),0);
+        },0);
+      }
+      if(fn==='LAST') return evalAst(ast.args[0],env)[YRS.length-1]||0;
+      if(fn==='FIRST') return evalAst(ast.args[0],env)[0]||0;
+      throw new Error('미정의 함수: '+ast.name);
+    }
+  }
+  throw new Error('알 수 없는 AST');
+}
+
+function evalAstYears(ast, env, selfKey){
+  let out=[];
+  let ctx={self:selfKey,out};
+  for(let i=0;i<YRS.length;i++) out[i]=evalAstAt(ast,env,i,ctx);
+  return out;
+}
+
 // ----- 평가 (element-wise on length YRS.length) -----
 function evalAst(ast, env){
   let N=YRS.length;
@@ -1646,6 +2242,9 @@ function evalAst(ast, env){
         case 'MIN':  return Array(N).fill(0).map((_,i)=>Math.min(...args.map(a=>a[i])));
         case 'MAX':  return Array(N).fill(0).map((_,i)=>Math.max(...args.map(a=>a[i])));
         case 'AVG':  return Array(N).fill(0).map((_,i)=>args.reduce((s,a)=>s+a[i],0)/args.length);
+        case 'SUMALL': return Array(N).fill(args.reduce((s,a)=>s+a.reduce((x,y)=>x+(Number(y)||0),0),0));
+        case 'LAST': return Array(N).fill(args[0][N-1]||0);
+        case 'FIRST': return Array(N).fill(args[0][0]||0);
         case 'IF':
           if(args.length!==3) throw new Error('IF는 3개 인자 필요');
           return Array(N).fill(0).map((_,i)=>args[0][i]?args[1][i]:args[2][i]);
@@ -1672,7 +2271,7 @@ function topoSort(){
     if(d && d.type==='computed' && d.formula){
       try{
         if(!d._ast) d._ast=parseFormula(d.formula);
-        if(!d._deps) d._deps=extractDeps(d._ast);
+        if(!d._deps){ d._deps=extractDeps(d._ast); d._deps.delete(k); }
         for(let dep of d._deps){
           if(D[dep]) visit(dep, [...path, k]);
         }
@@ -1715,7 +2314,7 @@ function simCalc(){
       continue;
     }
     try{
-      let v=evalAst(d._ast, env);
+      let v=evalAstYears(d._ast, env, k);
       env[k]=v;
       d.v=v;
       d._error=null;
@@ -1773,8 +2372,16 @@ function astToExcel(ast, year, rowMap){
       return '('+l+op+r+')';
     }
     case 'fn': {
-      let args=ast.args.map(a=>astToExcel(a, year, rowMap));
       let fn=ast.name.toUpperCase();
+      if(['SUMALL','LAST','FIRST'].includes(fn)){
+        if(ast.args.length!==1||ast.args[0].kind!=='ref') throw new Error(fn+'는 변수 참조 1개만 지원');
+        let row=rowMap[ast.args[0].name];
+        if(!row) throw new Error('미정의 변수: '+ast.args[0].name);
+        if(fn==='SUMALL') return 'SUM('+_colLetter(3)+row+':'+_colLetter(3+YRS.length-1)+row+')';
+        if(fn==='LAST') return _colLetter(3+YRS.length-1)+row;
+        if(fn==='FIRST') return _colLetter(3)+row;
+      }
+      let args=ast.args.map(a=>astToExcel(a, year, rowMap));
       switch(fn){
         case 'SUM': return 'SUM('+args.join(',')+')';
         case 'MIN': return 'MIN('+args.join(',')+')';
@@ -1794,11 +2401,12 @@ function astToExcel(ast, year, rowMap){
   throw new Error('AST 변환 실패');
 }
 
-// IR JSON 내보내기 — Python build_excel.py 입력용
+// 보조 JSON 내보내기
 function exportToJSON(){
   let payload={
     version: 1,
     YRS: YRS.slice(),
+    HIST_N: HIST_N,
     D: _serializeD(),
     SV: Object.fromEntries(Object.entries(SV).map(([k,v])=>[k,v.slice()])),
   };
@@ -1811,72 +2419,704 @@ function exportToJSON(){
   URL.revokeObjectURL(url);
 }
 
-function exportToExcel(){
-  if(typeof XLSX==='undefined'){
-    alert('XLSX 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인하거나 페이지를 새로고침하세요.');
+function _excelNumberFormat(d){
+  if(d&&d.pct)return '0.0%';
+  let u=d&&d.u?d.u:'';
+  if(u==='원'||u==='원/대'||u==='원/명'||u==='원/월'||u==='원/건')return '#,##0';
+  if(['대','명','건','주'].includes(u))return '#,##0';
+  if(u==='x')return '0.0x';
+  if(['GWh','백만대','천$/대','백만$/GWh'].some(t=>u.includes(t)))return '#,##0.0';
+  if(['$/','USD/','배럴','톤'].some(t=>u.includes(t)))return '#,##0.00';
+  return 'General';
+}
+
+const EXCEL_DATA_START_COL=8; // zero-based I column
+const EXCEL_DATA_START_ROW=4; // zero-based row 5
+const EXCEL_STYLE={
+  title:{font:{name:'Arial',sz:11,bold:true,color:{rgb:'1F4E79'}},alignment:{vertical:'center'}},
+  header:{font:{name:'Arial',sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'1F4E79'}},alignment:{horizontal:'center',vertical:'center'},border:{bottom:{style:'thin',color:{rgb:'A6A6A6'}}}},
+  headerHistorical:{font:{name:'Arial',sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'1F4E79'}},alignment:{horizontal:'center',vertical:'center'},border:{bottom:{style:'thin',color:{rgb:'A6A6A6'}}}},
+  headerForecast:{font:{name:'Arial',sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'808080'}},alignment:{horizontal:'centerContinuous',vertical:'center'},border:{bottom:{style:'thin',color:{rgb:'A6A6A6'}}}},
+  label:{font:{name:'맑은 고딕',sz:9,color:{rgb:'000000'}},alignment:{vertical:'center'}},
+  labelBold:{font:{name:'맑은 고딕',sz:9,bold:true,color:{rgb:'000000'}},alignment:{vertical:'center'}},
+  id:{font:{name:'Consolas',sz:8,color:{rgb:'808080'}},alignment:{vertical:'center'}},
+  unit:{font:{name:'Arial',sz:9,color:{rgb:'808080'}},alignment:{horizontal:'center',vertical:'center'}},
+  input:{font:{name:'Arial',sz:9,color:{rgb:'0000FF'}},alignment:{horizontal:'right',vertical:'center'}},
+  formula:{font:{name:'Arial',sz:9,color:{rgb:'000000'}},alignment:{horizontal:'right',vertical:'center'}},
+  link:{font:{name:'Arial',sz:9,color:{rgb:'008000'}},alignment:{horizontal:'right',vertical:'center'}},
+  section:{fill:{patternType:'solid',fgColor:{rgb:'DDEBF7'}},font:{name:'맑은 고딕',sz:9,bold:true,color:{rgb:'000000'}},border:{top:{style:'thin',color:{rgb:'A6A6A6'}}}},
+  output:{fill:{patternType:'solid',fgColor:{rgb:'DDEBF7'}},font:{name:'Arial',sz:9,bold:true,color:{rgb:'000000'}},alignment:{horizontal:'right',vertical:'center'},border:{top:{style:'thin',color:{rgb:'A6A6A6'}},bottom:{style:'double',color:{rgb:'000000'}}}},
+  meta:{font:{name:'맑은 고딕',sz:9,color:{rgb:'000000'}},alignment:{vertical:'center'}},
+};
+
+function _excelSheetRef(name){
+  return "'"+String(name).replace(/'/g,"''")+"'";
+}
+
+function _excelDescendants(root){
+  let out=[];
+  function walk(k){
+    if(!D[k]) return;
+    out.push(k);
+    Object.keys(D).forEach(child=>{
+      if(D[child]&&D[child].parent===k) walk(child);
+    });
+  }
+  walk(root);
+  return out;
+}
+
+function _excelOrderedExisting(order, ids){
+  let wanted=new Set(ids);
+  return order.filter(k=>wanted.has(k));
+}
+
+function _excelIsKcarModel(){
+  return ['ecommerce_sales','branch_sales','used_car_volume','fcff','value_per_share'].every(k=>D[k]);
+}
+
+function _excelKcarSheets(order){
+  let sales=D.rev?_excelDescendants('rev'):[];
+  let costAll=D.total_cost?_excelDescendants('total_cost'):[];
+  let labor=D.labor_cost?_excelDescendants('labor_cost'):[];
+  let excludedCost=new Set([...labor,'da']);
+  let cost=costAll.filter(k=>!excludedCost.has(k));
+  let capexDa=['capex','da'].filter(k=>D[k]);
+  let nwc=['rev','nwc_rate','nwc','change_nwc'].filter(k=>D[k]);
+  let dcf=[
+    'rev','total_cost','op_profit','tax_rate','tax','ebiat','da','capex',
+    'nwc','change_nwc','fcff','wacc','terminal_growth','discount_factor',
+    'pv_fcff','terminal_value','pv_terminal_value','enterprise_value',
+    'net_debt','equity_value','shares_outstanding','value_per_share'
+  ].filter(k=>D[k]);
+  let bs=['net_debt','shares_outstanding','equity_value','value_per_share'].filter(k=>D[k]);
+  let bridge=[
+    'rev','used_car_sales','ecommerce_sales','branch_sales','auction_sales',
+    'rental_sales','service_other_sales','used_car_volume'
+  ].filter(k=>D[k]);
+  return {
+    'DCF':_excelOrderedExisting(order,dcf),
+    'Sales':_excelOrderedExisting(order,sales),
+    'Sales Bridge':_excelOrderedExisting(order,bridge),
+    'Cost':_excelOrderedExisting(order,cost),
+    'CapEx,D&A':_excelOrderedExisting(order,capexDa),
+    'Labor':_excelOrderedExisting(order,labor),
+    'NWC':_excelOrderedExisting(order,nwc),
+    'BS':_excelOrderedExisting(order,bs),
+  };
+}
+
+function _excelSafeSheetName(name, fallback){
+  let s=String(name||fallback||'Sheet').replace(/[\\/?*:[\]]/g,' ').trim()||fallback||'Sheet';
+  if(s.length>31) s=s.slice(0,31).trim();
+  return s || 'Sheet';
+}
+
+function _excelGenericSheets(order){
+  let groups={};
+  let roots=Object.keys(D).filter(k=>D[k]&&D[k].parent===null);
+  let top=[];
+  roots.forEach(root=>{
+    Object.keys(D).forEach(k=>{ if(D[k]&&D[k].parent===root) top.push(k); });
+  });
+  if(!top.length) top=roots;
+  top.forEach(k=>{
+    let label=D[k]&&D[k].label?D[k].label:k;
+    let sheet=_excelSafeSheetName(label,k);
+    let base=sheet, n=2;
+    while(groups[sheet]) sheet=_excelSafeSheetName(base.slice(0,27)+' '+n++,base);
+    groups[sheet]=_excelOrderedExisting(order,_excelDescendants(k));
+  });
+  return groups;
+}
+
+function _excelModelSheets(order){
+  return _excelIsKcarModel() ? _excelKcarSheets(order) : _excelGenericSheets(order);
+}
+
+function _excelTreeOrder(){
+  let out=[], seen=new Set();
+  function walk(k){
+    if(!D[k]||seen.has(k)) return;
+    seen.add(k); out.push(k);
+    Object.keys(D).forEach(child=>{
+      if(D[child]&&D[child].parent===k) walk(child);
+    });
+  }
+  Object.keys(D).forEach(k=>{ if(!D[k].parent) walk(k); });
+  Object.keys(D).forEach(walk);
+  return out;
+}
+
+function _excelLevels(){
+  let memo={};
+  function lvl(k){
+    if(memo[k]!=null) return memo[k];
+    let p=D[k]&&D[k].parent;
+    memo[k]=(!p||!D[p])?0:lvl(p)+1;
+    return memo[k];
+  }
+  Object.keys(D).forEach(lvl);
+  return memo;
+}
+
+function astToExcelSheet(ast, year, localRowMap, modelRowMap){
+  function ref(name, yr){
+    let col=_colLetter(EXCEL_DATA_START_COL+yr);
+    if(localRowMap&&localRowMap[name]) return col+localRowMap[name];
+    if(modelRowMap&&modelRowMap[name]) return _excelSheetRef('Model')+'!'+col+modelRowMap[name];
+    throw new Error('미정의 변수: '+name);
+  }
+  function refRange(name){
+    let start=_colLetter(EXCEL_DATA_START_COL);
+    let end=_colLetter(EXCEL_DATA_START_COL+YRS.length-1);
+    if(localRowMap&&localRowMap[name]) return start+localRowMap[name]+':'+end+localRowMap[name];
+    if(modelRowMap&&modelRowMap[name]) return _excelSheetRef('Model')+'!'+start+modelRowMap[name]+':'+end+modelRowMap[name];
+    throw new Error('미정의 변수: '+name);
+  }
+  function refEdge(name, edge){
+    let col=edge==='last'?_colLetter(EXCEL_DATA_START_COL+YRS.length-1):_colLetter(EXCEL_DATA_START_COL);
+    if(localRowMap&&localRowMap[name]) return col+localRowMap[name];
+    if(modelRowMap&&modelRowMap[name]) return _excelSheetRef('Model')+'!'+col+modelRowMap[name];
+    throw new Error('미정의 변수: '+name);
+  }
+  switch(ast.kind){
+    case 'num': return String(ast.val);
+    case 'ref': return ref(ast.name, year);
+    case 'neg': return '(-'+astToExcelSheet(ast.x, year, localRowMap, modelRowMap)+')';
+    case 'bin': return '('+astToExcelSheet(ast.l, year, localRowMap, modelRowMap)+ast.op+astToExcelSheet(ast.r, year, localRowMap, modelRowMap)+')';
+    case 'cmp': {
+      let op=ast.op==='=='?'=':ast.op==='!='?'<>':ast.op;
+      return '('+astToExcelSheet(ast.l, year, localRowMap, modelRowMap)+op+astToExcelSheet(ast.r, year, localRowMap, modelRowMap)+')';
+    }
+    case 'fn': {
+      let fn=ast.name.toUpperCase();
+      if(['SUMALL','LAST','FIRST'].includes(fn)){
+        if(ast.args.length!==1||ast.args[0].kind!=='ref') throw new Error(fn+'는 변수 참조 1개만 지원');
+        let name=ast.args[0].name;
+        if(fn==='SUMALL') return 'SUM('+refRange(name)+')';
+        if(fn==='LAST') return refEdge(name,'last');
+        if(fn==='FIRST') return refEdge(name,'first');
+      }
+      if(fn==='PREV'){
+        if(year===0) return '0';
+        let inner=ast.args[0];
+        if(inner.kind!=='ref') throw new Error('PREV는 변수 참조만 지원');
+        return ref(inner.name, year-1);
+      }
+      let args=ast.args.map(a=>astToExcelSheet(a, year, localRowMap, modelRowMap));
+      if(fn==='AVG') return 'AVERAGE('+args.join(',')+')';
+      return fn+'('+args.join(',')+')';
+    }
+  }
+  throw new Error('AST 변환 실패');
+}
+
+function _excelMakeSheet(){
+  return {};
+}
+
+function _excelSet(ws,r,c,cell){
+  ws[XLSX.utils.encode_cell({r:r-1,c:c-1})]=cell;
+}
+
+function _excelCell(ws,r,c){
+  return ws[XLSX.utils.encode_cell({r:r-1,c:c-1})];
+}
+
+function _excelMergeStyle(base, extra){
+  return Object.assign({}, base||{}, extra||{});
+}
+
+function _excelSetValue(ws,r,c,v,d,style){
+  let cell={v:v==null?'':v,t:typeof v==='number'?'n':'s'};
+  if(d) cell.z=_excelNumberFormat(d);
+  if(style) cell.s=style;
+  _excelSet(ws,r,c,cell);
+}
+
+function _excelSetFormula(ws,r,c,f,v,d,style){
+  _excelSet(ws,r,c,{f:f,v:v==null?0:v,t:'n',z:_excelNumberFormat(d),s:style||EXCEL_STYLE.formula});
+}
+
+function _excelStyleCell(ws,r,c,style){
+  let cell=_excelCell(ws,r,c);
+  if(cell) cell.s=_excelMergeStyle(cell.s,style);
+}
+
+function _excelStyleRow(ws,r,c1,c2,style){
+  for(let c=c1;c<=c2;c++){
+    let cell=_excelCell(ws,r,c);
+    if(!cell){ cell={v:'',t:'s'}; _excelSet(ws,r,c,cell); }
+    cell.s=_excelMergeStyle(cell.s,style);
+  }
+}
+
+function _excelApplyDefaultStyles(ws,rowCount,colCount,sheetName){
+  ws['!views']=[{showGridLines:false,zoomScale:100}];
+  ws['!rows']=Array.from({length:rowCount},(_,i)=>({hpt:i===0?16.5:15}));
+  for(let r=1;r<=rowCount;r++){
+    for(let c=1;c<=colCount;c++){
+      let cell=_excelCell(ws,r,c);
+      if(!cell) continue;
+      if(r===1&&c===2){ cell.s=EXCEL_STYLE.title; continue; }
+      if(r===3||r===4){ cell.s=_excelMergeStyle(EXCEL_STYLE.header,cell.s); continue; }
+      if(c>=2&&c<=6){
+        cell.s=_excelMergeStyle(cell.s,cell.v?EXCEL_STYLE.label:EXCEL_STYLE.meta);
+      }else if(c===7){
+        cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.id);
+      }else if(c===8){
+        cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.unit);
+      }else if(c>=EXCEL_DATA_START_COL+1){
+        if(sheetName==='Assumptions'&&!cell.f) cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.input);
+        else if(cell.f&&String(cell.f).includes('!')) cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.link);
+        else if(cell.f) cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.formula);
+      }
+    }
+  }
+}
+
+function _excelWriteIndexSheet(wb,indexRows){
+  let ws=_excelMakeSheet();
+  _excelSetValue(ws,1,2,'Financial Model Index',null,EXCEL_STYLE.title);
+  _excelSetValue(ws,3,2,'Sheet',null,EXCEL_STYLE.header);
+  _excelSetValue(ws,3,3,'Description',null,EXCEL_STYLE.header);
+  indexRows.slice(2).forEach((row,i)=>{
+    let r=4+i;
+    _excelSetValue(ws,r,2,row[0],null,EXCEL_STYLE.labelBold);
+    _excelSetValue(ws,r,3,row[1],null,EXCEL_STYLE.label);
+  });
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:indexRows.length+1,c:2}});
+  ws['!cols']=[{wch:1},{wch:24},{wch:74}];
+  ws['!rows']=Array.from({length:indexRows.length+2},(_,i)=>({hpt:i===0?16.5:15}));
+  ws['!views']=[{showGridLines:false,zoomScale:100}];
+  XLSX.utils.book_append_sheet(wb,ws,'Index');
+}
+
+function _excelFinalize(ws,rowCount,colCount,sheetName){
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rowCount-1,c:colCount-1}});
+  ws['!cols']=[
+    {wch:1},{wch:1},{wch:1},{wch:1},{wch:1},{wch:32},
+    {wch:22},{wch:10},...YRS.map(()=>({wch:14}))
+  ];
+  _excelApplyDefaultStyles(ws,rowCount,colCount,sheetName||'');
+}
+
+function _excelPatchSheetViewXml(xml){
+  let view='<sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="100">'
+    +'<selection activeCell="A1" sqref="A1"/>'
+    +'</sheetView></sheetViews>';
+  if(/<sheetViews>[\s\S]*?<\/sheetViews>/.test(xml)) return xml.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/,view);
+  if(/<sheetFormatPr\b[^>]*\/>/.test(xml)) return xml.replace(/(<sheetFormatPr\b[^>]*\/>)/,'$1'+view);
+  if(/<dimension\b[^>]*\/>/.test(xml)) return xml.replace(/(<dimension\b[^>]*\/>)/,'$1'+view);
+  return xml.replace(/<worksheet([^>]*)>/,'<worksheet$1>'+view);
+}
+
+async function _excelDownloadWorkbook(wb, filename){
+  if(typeof JSZip==='undefined'){
+    XLSX.writeFile(wb,filename,{bookType:'xlsx',cellFormula:true,cellStyles:true});
     return;
   }
-  // 토폴로지 정렬로 가독성 있는 순서 (Excel은 자동 평가하므로 사실 무관)
-  let order;
-  try{ order=topoSort(); } catch(e){ alert('순환 참조: '+e.message); return; }
+  let bytes=XLSX.write(wb,{bookType:'xlsx',type:'array',cellFormula:true,cellStyles:true});
+  let zip=await JSZip.loadAsync(bytes);
+  let sheetPaths=Object.keys(zip.files).filter(p=>/^xl\/worksheets\/sheet\d+\.xml$/.test(p));
+  await Promise.all(sheetPaths.map(async p=>{
+    let xml=await zip.file(p).async('string');
+    zip.file(p,_excelPatchSheetViewXml(xml));
+  }));
+  let out=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  let url=URL.createObjectURL(out);
+  let a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
-  // 변수 → 행번호 (1-indexed, 헤더가 1행이므로 2부터)
-  let rowMap={};
-  order.forEach((k,i)=>{ rowMap[k]=i+2; });
+function _excelWriteHeaders(ws,title){
+  _excelSetValue(ws,1,2,title,null,EXCEL_STYLE.title);
+  if(HIST_N>0){
+    _excelSetValue(ws,3,EXCEL_DATA_START_COL+1,'Historical',null,EXCEL_STYLE.headerHistorical);
+    for(let i=1;i<HIST_N;i++) _excelSetValue(ws,3,EXCEL_DATA_START_COL+1+i,'',null,EXCEL_STYLE.headerHistorical);
+  }
+  if(YRS.length>HIST_N){
+    _excelSetValue(ws,3,EXCEL_DATA_START_COL+1+HIST_N,'Forecast',null,EXCEL_STYLE.headerForecast);
+    for(let i=HIST_N+1;i<YRS.length;i++) _excelSetValue(ws,3,EXCEL_DATA_START_COL+1+i,'',null,EXCEL_STYLE.headerForecast);
+  }
+  ['ID','Unit'].forEach((h,i)=>_excelSetValue(ws,4,7+i,h,null,EXCEL_STYLE.header));
+  YRS.forEach((y,i)=>_excelSetValue(ws,4,EXCEL_DATA_START_COL+1+i,y,null,_isFc(i)?EXCEL_STYLE.headerForecast:EXCEL_STYLE.header));
+}
 
-  // 헤더
-  let rows=[['Variable','Label','Unit',...YRS]];
+function _excelWriteNodeSheet(wb,name,nodeIds,levels,modelRowMap,inputRowMap,auditRows){
+  let ws=_excelMakeSheet();
+  _excelWriteHeaders(ws,name);
+  let localRowMap={};
+  nodeIds.forEach((k,i)=>{ localRowMap[k]=EXCEL_DATA_START_ROW+1+i; });
+  let formulaCount=0;
+  let linkCount=0;
+  nodeIds.forEach(k=>{
+    let d=D[k]; if(!d) return;
+    let row=localRowMap[k];
+    let labelCol=Math.min(2+(levels[k]||0),6);
+    let isSection=d.type==='computed'&&((levels[k]||0)<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
+    _excelSetValue(ws,row,labelCol,d.label||k,null,isSection?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
+    _excelSetValue(ws,row,7,k,null,EXCEL_STYLE.id);
+    _excelSetValue(ws,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    if(d.type==='input'){
+      let arow=inputRowMap[k];
+      for(let i=0;i<YRS.length;i++){
+        let f=_excelSheetRef('Assumptions')+'!'+_colLetter(EXCEL_DATA_START_COL+i)+arow;
+        _excelSetFormula(ws,row,EXCEL_DATA_START_COL+1+i,f,(d.v&&d.v[i]!=null)?d.v[i]:0,d,EXCEL_STYLE.link);
+        auditRows.push([name,k,d.label||k,YRS[i],_colLetter(EXCEL_DATA_START_COL+i)+row,'='+f,'assumption link']);
+        linkCount++;
+      }
+    }else if(d.type==='computed'){
+      let ast=parseFormula(d.formula||'');
+      for(let i=0;i<YRS.length;i++){
+        let f=astToExcelSheet(ast,i,localRowMap,modelRowMap);
+        _excelSetFormula(ws,row,EXCEL_DATA_START_COL+1+i,f,(d.v&&d.v[i]!=null)?d.v[i]:0,d,isSection?EXCEL_STYLE.output:EXCEL_STYLE.formula);
+        auditRows.push([name,k,d.label||k,YRS[i],_colLetter(EXCEL_DATA_START_COL+i)+row,'='+f,'sheet calculation']);
+        formulaCount++;
+      }
+    }
+    if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+  });
+  _excelFinalize(ws,EXCEL_DATA_START_ROW+nodeIds.length,YRS.length+EXCEL_DATA_START_COL,name);
+  XLSX.utils.book_append_sheet(wb,ws,name);
+  return {formulaCount,linkCount};
+}
 
-  // 각 변수 행
+
+
+function astToExcelR1C1(ast, year, rowMap, currentRow, currentCol){
+  function rc(row, col){
+    let dr=row-currentRow;
+    let dc=col-currentCol;
+    let r=dr===0?'R':'R['+dr+']';
+    let c=dc===0?'C':'C['+dc+']';
+    return r+c;
+  }
+  function ref(name, yr){
+    let row=rowMap[name];
+    if(!row) throw new Error('미정의 변수: '+name);
+    return rc(row,4+yr);
+  }
+  switch(ast.kind){
+    case 'num': return String(ast.val);
+    case 'ref': return ref(ast.name, year);
+    case 'neg': return '(-'+astToExcelR1C1(ast.x, year, rowMap, currentRow, currentCol)+')';
+    case 'bin': {
+      let l=astToExcelR1C1(ast.l, year, rowMap, currentRow, currentCol);
+      let r=astToExcelR1C1(ast.r, year, rowMap, currentRow, currentCol);
+      return '('+l+ast.op+r+')';
+    }
+    case 'cmp': {
+      let l=astToExcelR1C1(ast.l, year, rowMap, currentRow, currentCol);
+      let r=astToExcelR1C1(ast.r, year, rowMap, currentRow, currentCol);
+      let op=ast.op==='=='?'=':ast.op==='!='?'<>':ast.op;
+      return '('+l+op+r+')';
+    }
+    case 'fn': {
+      let fn=ast.name.toUpperCase();
+      if(['SUMALL','LAST','FIRST'].includes(fn)){
+        if(ast.args.length!==1||ast.args[0].kind!=='ref') throw new Error(fn+'는 변수 참조 1개만 지원');
+        let row=rowMap[ast.args[0].name];
+        if(!row) throw new Error('미정의 변수: '+ast.args[0].name);
+        if(fn==='SUMALL') return 'SUM('+rc(row,4)+':'+rc(row,4+YRS.length-1)+')';
+        if(fn==='LAST') return rc(row,4+YRS.length-1);
+        if(fn==='FIRST') return rc(row,4);
+      }
+      let args=ast.args.map(a=>astToExcelR1C1(a, year, rowMap, currentRow, currentCol));
+      switch(fn){
+        case 'SUM': return 'SUM('+args.join(',')+')';
+        case 'MIN': return 'MIN('+args.join(',')+')';
+        case 'MAX': return 'MAX('+args.join(',')+')';
+        case 'AVG': return 'AVERAGE('+args.join(',')+')';
+        case 'IF': return 'IF('+args[0]+','+args[1]+','+args[2]+')';
+        case 'PREV': {
+          if(year===0) return '0';
+          let inner=ast.args[0];
+          if(inner.kind!=='ref') throw new Error('PREV는 변수 참조만 지원');
+          return ref(inner.name, year-1);
+        }
+        default: throw new Error('미지 함수: '+fn);
+      }
+    }
+  }
+  throw new Error('AST 변환 실패');
+}
+
+function _xmlEsc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _excelXmlFormula(f){return '='+f.replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+function _downloadFormulaXmlWorkbook(order,rowMap,formulaRows,base,ts){
+  let ss='urn:schemas-microsoft-com:office:spreadsheet';
+  let rows=[];
+  rows.push('<Row>'+['Variable','Label','Unit',...YRS].map(h=>'<Cell><Data ss:Type="String">'+_xmlEsc(h)+'</Data></Cell>').join('')+'</Row>');
   for(let k of order){
     let d=D[k]; if(!d) continue;
-    let row=[k, d.label||k, d.u||''];
+    let cells=[k,d.label||k,d.u||''].map(v=>'<Cell><Data ss:Type="String">'+_xmlEsc(v)+'</Data></Cell>');
     if(d.type==='input'){
-      for(let i=0;i<YRS.length;i++) row.push(d.v?d.v[i]:0);
-    } else {
-      // 수식 → Excel formula
-      let ast=null;
-      try{ ast=parseFormula(d.formula||''); } catch(e){}
+      for(let i=0;i<YRS.length;i++) cells.push('<Cell><Data ss:Type="Number">'+((d.v&&d.v[i]!=null)?d.v[i]:0)+'</Data></Cell>');
+    }else{
+      let ast=parseFormula(d.formula||'');
       for(let i=0;i<YRS.length;i++){
-        if(!ast){
-          row.push(d.v?d.v[i]:0); continue;
-        }
+        let f=astToExcelR1C1(ast,i,rowMap,rowMap[k],4+i);
+        let v=(d.v&&d.v[i]!=null)?d.v[i]:0;
+        cells.push('<Cell ss:Formula="'+_excelXmlFormula(f)+'"><Data ss:Type="Number">'+v+'</Data></Cell>');
+      }
+    }
+    rows.push('<Row>'+cells.join('')+'</Row>');
+  }
+  let auditRows=[];
+  auditRows.push('<Row>'+['ID','Label','Year','Cell','Formula'].map(h=>'<Cell><Data ss:Type="String">'+_xmlEsc(h)+'</Data></Cell>').join('')+'</Row>');
+  formulaRows.forEach(r=>{
+    auditRows.push('<Row>'+r.map(v=>'<Cell><Data ss:Type="String">'+_xmlEsc(v)+'</Data></Cell>').join('')+'</Row>');
+  });
+  let indexRows=['Financial Model Index','Index / Control / Model / Formula Audit / Checks / Metadata'].map(v=>'<Row><Cell><Data ss:Type="String">'+_xmlEsc(v)+'</Data></Cell></Row>').join('');
+  let checksRows='<Row><Cell><Data ss:Type="String">Check</Data></Cell><Cell><Data ss:Type="String">Result</Data></Cell></Row>'
+    +'<Row><Cell><Data ss:Type="String">Formula cells generated</Data></Cell><Cell><Data ss:Type="Number">'+formulaRows.length+'</Data></Cell></Row>'
+    +'<Row><Cell><Data ss:Type="String">Formula cells > 0</Data></Cell><Cell><Data ss:Type="String">'+(formulaRows.length>0?'OK':'FAIL')+'</Data></Cell></Row>';
+  let controlRows='<Row><Cell><Data ss:Type="String">Control / Key Outputs</Data></Cell></Row>';
+  let metaRows='<Row><Cell><Data ss:Type="String">Generated by</Data></Cell><Cell><Data ss:Type="String">HTML exportToExcel fallback</Data></Cell></Row>';
+  let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>'
+    +'<Workbook xmlns="'+ss+'" xmlns:ss="'+ss+'">'
+    +'<Worksheet ss:Name="Index"><Table>'+indexRows+'</Table></Worksheet>'
+    +'<Worksheet ss:Name="Control"><Table>'+controlRows+'</Table></Worksheet>'
+    +'<Worksheet ss:Name="Model"><Table>'+rows.join('')+'</Table></Worksheet>'
+    +'<Worksheet ss:Name="Formula Audit"><Table>'+auditRows.join('')+'</Table></Worksheet>'
+    +'<Worksheet ss:Name="Checks"><Table>'+checksRows+'</Table></Worksheet>'
+    +'<Worksheet ss:Name="Metadata"><Table>'+metaRows+'</Table></Worksheet>'
+    +'</Workbook>';
+  let blob=new Blob([xml],{type:'application/vnd.ms-excel'});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement('a');
+  a.href=url; a.download=base+'_'+ts+'.xls';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+async function exportToExcel(){
+  simCalc();
+
+  let calcOrder;
+  try{ calcOrder=topoSort(); }
+  catch(e){ alert('순환 참조 때문에 Excel을 생성할 수 없습니다: '+e.message); return; }
+
+  let order=_excelTreeOrder();
+  let levels=_excelLevels();
+  let modelRowMap={};
+  order.forEach((k,i)=>{ modelRowMap[k]=EXCEL_DATA_START_ROW+1+i; });
+  let inputOrder=order.filter(k=>D[k]&&D[k].type==='input');
+  let inputRowMap={};
+  inputOrder.forEach((k,i)=>{ inputRowMap[k]=EXCEL_DATA_START_ROW+1+i; });
+
+  let ts=new Date().toISOString().slice(0,10);
+  let base=(document.title||'financial_model').trim().toLowerCase().replace(/[^a-z0-9가-힣]+/gi,'_').replace(/^_+|_+$/g,'')||'financial_model';
+
+  if(typeof XLSX==='undefined'){
+    let formulaRows=[];
+    let errors=[];
+    for(let k of calcOrder){
+      let d=D[k]; if(!d||d.type!=='computed') continue;
+      if(!d.formula){ errors.push(k+': 계산 노드에 formula 없음'); continue; }
+      let ast;
+      try{ ast=parseFormula(d.formula); }catch(e){ errors.push(k+': 수식 파싱 실패 — '+e.message); continue; }
+      for(let i=0;i<YRS.length;i++){
+        try{ formulaRows.push([k,d.label||k,YRS[i],_colLetter(EXCEL_DATA_START_COL+i)+modelRowMap[k],'='+astToExcelSheet(ast,i,modelRowMap,modelRowMap)]); }
+        catch(e){ errors.push(k+' '+YRS[i]+': Excel 수식 변환 실패 — '+e.message); }
+      }
+    }
+    if(errors.length){
+      alert('Excel 수식 생성 실패:\n'+errors.slice(0,12).join('\n')+(errors.length>12?'\n...':'')+'\n\n값만 들어간 파일은 생성하지 않습니다.');
+      return;
+    }
+    _downloadFormulaXmlWorkbook(order,rowMap,formulaRows,base,ts);
+    return;
+  }
+
+  let wb=XLSX.utils.book_new();
+  wb.Props={Title:document.title||'Financial Model', Subject:'Formula-driven financial model', Author:'financial-modeling'};
+  wb.Workbook={CalcPr:{calcMode:'auto', fullCalcOnLoad:true, forceFullCalc:true}};
+
+  let formulaCells=0;
+  let linkCells=0;
+  let auditRows=[['Sheet','ID','Label','Year','Cell','Formula','Type']];
+  let errors=[];
+  let moduleSheets=_excelModelSheets(order);
+
+  let indexRows=[
+    ['Financial Model Index'],
+    ['Sheet','Description'],
+    ['Control','핵심 가정과 주요 결과 요약'],
+  ];
+  let descMap={
+    'DCF':'FCFF, 터미널가치, Equity Value, 주당가치',
+    'Sales':'채널별·차급별 Q × P 매출 모델',
+    'Sales Bridge':'매출 구성과 주요 드라이버 브릿지',
+    'Cost':'재고자산원가, 보증비, 렌터카 원가, 판관비',
+    'CapEx,D&A':'투자와 감가상각비',
+    'Labor':'필요 인원과 평균급여 기반 인건비',
+    'NWC':'매출/비용 연동 운전자본과 △NWC',
+    'BS':'순차입금, 주식수, 주주가치 연결',
+  };
+  Object.keys(moduleSheets).filter(s=>moduleSheets[s].length).forEach(s=>{
+    indexRows.push([s,descMap[s]||'HTML 모델 구조에서 생성한 계산 시트']);
+  });
+  indexRows.push(
+    ['Assumptions','모든 하드코딩 입력값 집중 시트'],
+    ['Model','HTML D 그래프 전체 계산 엔진'],
+    ['Formula Audit','생성된 모든 수식 셀 감사'],
+    ['Structure','노드 ID, parent, formula, description'],
+    ['Checks','수식/구조/정합성 검증'],
+    ['Metadata','생성 정보'],
+  );
+  _excelWriteIndexSheet(wb,indexRows);
+
+  let dcfRows={};
+  if(moduleSheets.DCF) moduleSheets.DCF.forEach((k,i)=>{ dcfRows[k]=EXCEL_DATA_START_ROW+1+i; });
+
+  let wsControl=_excelMakeSheet();
+  _excelWriteHeaders(wsControl,'Control');
+  let controlNodes=['enterprise_value','value_per_share','rev','used_car_sales','ecommerce_sales','branch_sales','total_cost','op_profit','fcff','equity_value'].filter(k=>D[k]);
+  controlNodes.forEach((k,i)=>{
+    let d=D[k], row=EXCEL_DATA_START_ROW+1+i;
+    _excelSetValue(wsControl,row,2,d.label||k,null,EXCEL_STYLE.labelBold);
+    _excelSetValue(wsControl,row,7,k,null,EXCEL_STYLE.id);
+    _excelSetValue(wsControl,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    for(let y=0;y<YRS.length;y++){
+      let source=dcfRows[k] ? _excelSheetRef('DCF')+'!'+_colLetter(EXCEL_DATA_START_COL+y)+dcfRows[k] : _excelSheetRef('Model')+'!'+_colLetter(EXCEL_DATA_START_COL+y)+modelRowMap[k];
+      _excelSetFormula(wsControl,row,EXCEL_DATA_START_COL+1+y,source,(d.v&&d.v[y]!=null)?d.v[y]:0,d,EXCEL_STYLE.link);
+      auditRows.push(['Control',k,d.label||k,YRS[y],_colLetter(EXCEL_DATA_START_COL+y)+row,'='+source,'output link']);
+      linkCells++;
+    }
+    _excelStyleRow(wsControl,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+  });
+  _excelFinalize(wsControl,EXCEL_DATA_START_ROW+controlNodes.length,YRS.length+EXCEL_DATA_START_COL,'Control');
+  XLSX.utils.book_append_sheet(wb,wsControl,'Control');
+
+  Object.entries(moduleSheets).forEach(([sheetName,nodeIds])=>{
+    if(!nodeIds.length) return;
+    try{
+      let counts=_excelWriteNodeSheet(wb,sheetName,nodeIds,levels,modelRowMap,inputRowMap,auditRows);
+      formulaCells+=counts.formulaCount;
+      linkCells+=counts.linkCount;
+    }catch(e){
+      errors.push(sheetName+': '+e.message);
+    }
+  });
+
+  let wsAssump=_excelMakeSheet();
+  _excelWriteHeaders(wsAssump,'Assumptions');
+  inputOrder.forEach(k=>{
+    let d=D[k], row=inputRowMap[k];
+    let labelCol=Math.min(2+(levels[k]||0),6);
+    _excelSetValue(wsAssump,row,labelCol,d.label||k,null,EXCEL_STYLE.label);
+    _excelSetValue(wsAssump,row,7,k,null,EXCEL_STYLE.id);
+    _excelSetValue(wsAssump,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    for(let i=0;i<YRS.length;i++) _excelSetValue(wsAssump,row,EXCEL_DATA_START_COL+1+i,(d.v&&d.v[i]!=null)?d.v[i]:0,d,EXCEL_STYLE.input);
+  });
+  _excelFinalize(wsAssump,EXCEL_DATA_START_ROW+inputOrder.length,YRS.length+EXCEL_DATA_START_COL,'Assumptions');
+  XLSX.utils.book_append_sheet(wb,wsAssump,'Assumptions');
+
+  let ws=_excelMakeSheet();
+  _excelWriteHeaders(ws,'Model');
+
+  for(let k of order){
+    let d=D[k]; if(!d) continue;
+    let row=modelRowMap[k];
+    let labelCol=Math.min(2+(levels[k]||0),6);
+    let isSection=d.type==='computed'&&((levels[k]||0)<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
+    _excelSetValue(ws,row,labelCol,d.label||k,null,isSection?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
+    _excelSetValue(ws,row,7,k,null,EXCEL_STYLE.id);
+    _excelSetValue(ws,row,8,d.u||'',null,EXCEL_STYLE.unit);
+
+    if(d.type==='input'){
+      for(let i=0;i<YRS.length;i++){
+        let f=_excelSheetRef('Assumptions')+'!'+_colLetter(EXCEL_DATA_START_COL+i)+inputRowMap[k];
+        _excelSetFormula(ws,row,EXCEL_DATA_START_COL+1+i,f,(d.v&&d.v[i]!=null)?d.v[i]:0,d,EXCEL_STYLE.link);
+        auditRows.push(['Model',k,d.label||k,YRS[i],_colLetter(EXCEL_DATA_START_COL+i)+row,'='+f,'assumption link']);
+        linkCells++;
+      }
+      if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+      continue;
+    }
+
+    if(d.type==='computed'){
+      if(!d.formula){ errors.push(k+': 계산 노드에 formula 없음'); continue; }
+      let ast;
+      try{ ast=parseFormula(d.formula); }
+      catch(e){ errors.push(k+': 수식 파싱 실패 — '+e.message); continue; }
+
+      for(let i=0;i<YRS.length;i++){
         try{
-          let f=astToExcel(ast, i, rowMap);
-          // {f: formula, v: cached value} — Excel이 다시 계산하지 않아도 표시 가능
-          row.push({f, v:d.v?d.v[i]:0, t:'n'});
-        } catch(e){
-          row.push(d.v?d.v[i]:0);
+          let f=astToExcelSheet(ast,i,modelRowMap,modelRowMap);
+          let v=(d.v&&d.v[i]!=null)?d.v[i]:0;
+          _excelSetFormula(ws,row,EXCEL_DATA_START_COL+1+i,f,v,d,isSection?EXCEL_STYLE.output:EXCEL_STYLE.formula);
+          formulaCells++;
+          auditRows.push(['Model',k,d.label||k,YRS[i],_colLetter(EXCEL_DATA_START_COL+i)+row,'='+f,'calculation']);
+        }catch(e){
+          errors.push(k+' '+YRS[i]+': Excel 수식 변환 실패 — '+e.message);
         }
       }
     }
-    rows.push(row);
+    if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
   }
 
-  // 시트 + 워크북
-  let ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[
-    {wch:18},  // Variable ID
-    {wch:24},  // Label
-    {wch:10},  // Unit
-    ...YRS.map(()=>({wch:14})),
+  if(errors.length){
+    alert('Excel 수식 생성 실패:\n'+errors.slice(0,12).join('\n')+(errors.length>12?'\n...':'')+'\n\n값만 들어간 파일은 생성하지 않습니다.');
+    return;
+  }
+  if(formulaCells===0){
+    alert('생성된 Excel 수식이 0개입니다. 값 덤프는 재무모델이 아니므로 export를 중단합니다.');
+    return;
+  }
+
+  _excelFinalize(ws,EXCEL_DATA_START_ROW+order.length,YRS.length+EXCEL_DATA_START_COL,'Model');
+  XLSX.utils.book_append_sheet(wb,ws,'Model');
+
+  let structureRows=[['ID','Label','Parent','Type','Formula','Unit','Description']];
+  order.forEach(k=>{
+    let d=D[k]; if(!d) return;
+    structureRows.push([k,d.label||'',d.parent||'',d.type||'',d.formula||'',d.u||'',d.desc||'']);
+  });
+  let wsStructure=XLSX.utils.aoa_to_sheet(structureRows);
+  wsStructure['!cols']=[{wch:24},{wch:30},{wch:22},{wch:12},{wch:48},{wch:12},{wch:60}];
+  _excelApplyDefaultStyles(wsStructure,structureRows.length,7,'Structure');
+  XLSX.utils.book_append_sheet(wb,wsStructure,'Structure');
+
+  let wsAudit=XLSX.utils.aoa_to_sheet(auditRows);
+  wsAudit['!cols']=[{wch:24},{wch:30},{wch:10},{wch:10},{wch:42}];
+  _excelApplyDefaultStyles(wsAudit,auditRows.length,7,'Formula Audit');
+  XLSX.utils.book_append_sheet(wb,wsAudit,'Formula Audit');
+
+  let checkRows=[
+    ['Check','Result'],
+    ['Formula cells generated',formulaCells],
+    ['Formula cells > 0',formulaCells>0?'OK':'FAIL'],
+    ['Input/link formula cells',linkCells],
+    ['Operating sheets generated',Object.keys(moduleSheets).filter(s=>moduleSheets[s].length).join(', ')||'Generic Model only'],
+    ['Computed nodes',order.filter(k=>D[k]&&D[k].type==='computed').length],
+    ['Input nodes',order.filter(k=>D[k]&&D[k].type==='input').length],
   ];
-  // 헤더 굵게 (스타일은 SheetJS Community Edition에서 제한적이지만 셀 type 설정은 가능)
-  let wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Model');
+  let wsChecks=XLSX.utils.aoa_to_sheet(checkRows);
+  wsChecks['!cols']=[{wch:32},{wch:20}];
+  _excelApplyDefaultStyles(wsChecks,checkRows.length,2,'Checks');
+  XLSX.utils.book_append_sheet(wb,wsChecks,'Checks');
 
-  // 트리 구조 시트 (부가 정보)
-  let treeRows=[['ID','Label','Parent','Type','Formula','Unit','Description']];
-  for(let k of order){
-    let d=D[k]; if(!d) continue;
-    treeRows.push([k, d.label||'', d.parent||'', d.type||'', d.formula||'', d.u||'', d.desc||'']);
-  }
-  let wsTree=XLSX.utils.aoa_to_sheet(treeRows);
-  wsTree['!cols']=[{wch:18},{wch:24},{wch:18},{wch:12},{wch:30},{wch:10},{wch:40}];
-  XLSX.utils.book_append_sheet(wb, wsTree, 'Structure');
+  let metaRows=[
+    ['Generated by','HTML exportToExcel'],
+    ['Title',document.title||'Financial Model'],
+    ['Nodes',order.length],
+    ['Input nodes',[...INPUT_KEYS].length],
+    ['Formula cells',formulaCells],
+    ['Input/link formula cells',linkCells],
+    ['Years',YRS.join(', ')],
+    ['Formula policy','HTML Excel export creates operating sheets with live formulas and aborts on conversion errors.'],
+  ];
+  let wsMeta=XLSX.utils.aoa_to_sheet(metaRows);
+  wsMeta['!cols']=[{wch:22},{wch:80}];
+  _excelApplyDefaultStyles(wsMeta,metaRows.length,2,'Metadata');
+  XLSX.utils.book_append_sheet(wb,wsMeta,'Metadata');
 
-  let ts=new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, 'financial_model_'+ts+'.xlsx');
+  await _excelDownloadWorkbook(wb,base+'_'+ts+'.xlsx');
 }
 
 // 초기화: 초안 스냅샷 → localStorage 복원 → 트리·평가 갱신
@@ -2047,45 +3287,48 @@ let _selectedYrs=new Set();
 let _collapsedSecs=new Set(); // empty = all 2026-2031
 
 function _getAffectedYears(){
-  if(_selectedYrs.size===0) return YRS.map((_,i)=>i).slice(1); // all except 실적 연도 (index 0)
-  return [..._selectedYrs].filter(i=>i>0).sort();
+  if(_selectedYrs.size===0) return YRS.map((_,i)=>i).slice(HIST_N);
+  return [..._selectedYrs].filter(i=>_isFc(i)).sort();
 }
 
 function _buildSliders(){
   let bd=document.getElementById('_simBody');if(!bd)return;bd.innerHTML='';
-  let activeYrs=_simYrs.size>0?[..._simYrs].sort():YRS.map((_,i)=>i).slice(1); // default: 모든 추정 연도 (실적 제외)
+  let activeYrs=_simYrs.size>0?[..._simYrs].filter(i=>_isFc(i)).sort():YRS.map((_,i)=>i).slice(HIST_N);
 
-  // Year selector (multi-toggle)
+  // Year selector (Historical / Forecast split)
   let yrWrap=document.createElement('div');yrWrap.style.cssText='margin-bottom:4px';
   let yrHint=document.createElement('div');yrHint.style.cssText='font-size:9px;color:#aaa;margin-bottom:4px';
   yrHint.textContent=_simYrs.size===0?'전체 연도 조정 (클릭하여 특정 연도 선택)':'선택된 연도만 조정';
   yrWrap.appendChild(yrHint);
-  let yr=document.createElement('div');yr.style.cssText='display:flex;gap:2px';
-  YRS.forEach((y,i)=>{
-    let sel=_simYrs.has(i);
-    let isLocked=i===0;
-    let b=document.createElement('div');
-    let bg=isLocked?'#F3F4F6':sel?'#333':(_simYrs.size===0&&i>0)?'#555':'#fff';
-    let fg=isLocked?'#bbb':sel?'#fff':(_simYrs.size===0&&i>0)?'#fff':'#888';
-    let bdr=isLocked?'#ddd':sel?'#333':(_simYrs.size===0&&i>0)?'#555':'#E5E7EB';
-    b.style.cssText='flex:1;padding:3px 0;font-size:9px;text-align:center;border:1px solid '+bdr+';border-radius:3px;cursor:'+(isLocked?'default':'pointer')+';font-family:Arial,sans-serif;color:'+fg+';background:'+bg;
-    b.textContent=isLocked?y+' 실적':y;
-    if(!isLocked){
-      b.onclick=()=>{
-        if(_simYrs.has(i))_simYrs.delete(i);
-        else _simYrs.add(i);
-        // If all 26~31 selected, clear to mean "all"
-        if(_simYrs.size===YRS.length-1&&!_simYrs.has(0)){_simYrs.clear()}
-        _buildSliders();
-      };
-    }
-    yr.appendChild(b);
-  });
-  yrWrap.appendChild(yr);
+  function yrRow(label,idxs,locked){
+    let row=document.createElement('div');row.style.cssText='display:flex;gap:3px;margin-bottom:4px;align-items:center';
+    let chip=document.createElement('div');chip.style.cssText='width:42px;padding:3px 0;text-align:center;font-size:9px;border-radius:3px;background:'+(locked?'#F3F4F6':'#EDF3FF')+';color:'+(locked?'#999':'#3332D0')+';border:1px '+(locked?'dashed':'solid')+' '+(locked?'#D1D5DB':'#A1B8FF');
+    chip.textContent=label;row.appendChild(chip);
+    idxs.forEach(i=>{
+      let y=YRS[i],sel=_simYrs.has(i);
+      let b=document.createElement('div');
+      let bg=locked?'#F9FAFB':sel?'#333':(_simYrs.size===0)?'#555':'#fff';
+      let fg=locked?'#bbb':sel?'#fff':(_simYrs.size===0)?'#fff':'#888';
+      let bdr=locked?'#DDD':sel?'#333':(_simYrs.size===0)?'#555':'#E5E7EB';
+      b.style.cssText='flex:1;padding:3px 0;font-size:9px;text-align:center;border:1px '+(locked?'dashed':'solid')+' '+bdr+';border-radius:3px;cursor:'+(locked?'not-allowed':'pointer')+';font-family:Arial,sans-serif;color:'+fg+';background:'+bg;
+      b.textContent=y;
+      if(!locked){
+        b.onclick=()=>{
+          if(_simYrs.has(i))_simYrs.delete(i); else _simYrs.add(i);
+          if(_simYrs.size===YRS.length-HIST_N) _simYrs.clear();
+          _buildSliders();
+        };
+      }
+      row.appendChild(b);
+    });
+    yrWrap.appendChild(row);
+  }
+  yrRow('실적',YRS.map((_,i)=>i).filter(i=>!_isFc(i)),true);
+  yrRow('추정',YRS.map((_,i)=>i).filter(i=>_isFc(i)),false);
   bd.appendChild(yrWrap);
 
-  // Display representative year for slider value (first selected, or 2026)
-  let dispYr=activeYrs[0]||1;
+  // Display representative year for slider value
+  let dispYr=activeYrs[0]??HIST_N;
 
   SIM_SECS.forEach(sec=>{
     let isOpen=!_collapsedSecs.has(sec.t);

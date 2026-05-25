@@ -136,7 +136,7 @@ HTML 단계에서 합의해야 할 것은 숫자의 마지막 자리보다 구�
 
 수강자는 자신이 아는 회사 하나를 골라 [templates/bm_brief.md](templates/bm_brief.md)를 채웁니다. 숫자가 완벽할 필요는 없습니다. 중요한 것은 돈 버는 방식과 드라이버를 말로 설명하는 것입니다.
 
-강사는 먼저 [html-examples/kcar-2023/bm_model_structure.md](../html-examples/kcar-2023/bm_model_structure.md)를 예시로 보여줍니다. 이후 LLM과 직접 대화하면서 framework HTML의 각 블록이 채워지는 과정을 라이브로 시연합니다. 실제 대화 예시는 강의 후 별도 파일로 축적합니다.
+강사는 먼저 [examples/kcar-2023/kcar_bm_model_structure.md](../examples/kcar-2023/kcar_bm_model_structure.md)를 예시로 보여줍니다. 이후 LLM과 직접 대화하면서 framework HTML의 각 블록이 채워지는 과정을 라이브로 시연합니다. 실제 대화 예시는 강의 후 별도 파일로 축적합니다.
 
 ### 과제 2. LLM과 드라이버 구조 만들기
 
@@ -144,7 +144,7 @@ BM 브리프를 LLM에 넣고 매출, 비용, B/S 연결 질문을 반복합니�
 
 ### 과제 3. HTML 트리 만들기
 
-[html-framework/template.html](../html-framework/template.html)을 복사해 `YRS`, `D`, `INPUT_KEYS`, `TREE`, `DEFAULTS_S`, `simCalc`, `SIM_SECS`를 채웁니다.
+[framework/template.html](../framework/template.html)을 복사해 `YRS`, `D`, `INPUT_KEYS`, `TREE`, `DEFAULTS_S`, `simCalc`, `SIM_SECS`를 채웁니다.
 
 ### 과제 4. Excel 모델로 옮기기
 
