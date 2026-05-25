@@ -1,0 +1,31 @@
+# Proprietary samples (회사 사업보고서·재무모델 등)
+samples/
+
+# Office lock files
+.~lock.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temp / build
+*.tmp
+*.bak
+dist/
+build/
+node_modules/
+
+# Python (엑셀 생성기 등 향후 추가 시)
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
