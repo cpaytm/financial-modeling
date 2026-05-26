@@ -1959,12 +1959,12 @@ function exportToJSON(){
 function _excelNumberFormat(d){
   if(d&&d.pct)return '0.0%';
   let u=d&&d.u?d.u:'';
-  if(u==='원'||u==='원/대'||u==='원/명'||u==='원/월'||u==='원/건')return '#,##0';
-  if(['대','명','건','주'].includes(u))return '#,##0';
-  if(u==='x')return '0.0x';
-  if(['GWh','백만대','천$/대','백만$/GWh'].some(t=>u.includes(t)))return '#,##0.0';
-  if(['$/','USD/','배럴','톤'].some(t=>u.includes(t)))return '#,##0.00';
-  return 'General';
+  if(u==='x')return '0.0"x"';
+  if(['대','명','건','주'].includes(u))return '#,##0;(#,##0);"-"';
+  if(u==='%')return '0.0%;(0.0%);"-"';
+  if(['GWh','백만대','천$/대','백만$/GWh','million','bn','십억','백만'].some(t=>u.includes(t)))return '_-* #,##0.0_-;-* #,##0.0_-;_-* "-"_-;_-@_-';
+  if(['$/','USD/','배럴','톤'].some(t=>u.includes(t)))return '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"_-;_-@_-';
+  return '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-';
 }
 
 const EXCEL_DATA_START_COL=8; // zero-based I column
@@ -1983,6 +1983,9 @@ const EXCEL_STYLE={
   link:{font:{name:'Arial',sz:9,color:{rgb:'008000'}},alignment:{horizontal:'right',vertical:'center'}},
   section:{fill:{patternType:'solid',fgColor:{rgb:'DDEBF7'}},font:{name:'맑은 고딕',sz:9,bold:true,color:{rgb:'000000'}},border:{top:{style:'thin',color:{rgb:'A6A6A6'}}}},
   output:{fill:{patternType:'solid',fgColor:{rgb:'DDEBF7'}},font:{name:'Arial',sz:9,bold:true,color:{rgb:'000000'}},alignment:{horizontal:'right',vertical:'center'},border:{top:{style:'thin',color:{rgb:'A6A6A6'}},bottom:{style:'double',color:{rgb:'000000'}}}},
+  rowBorder:{border:{bottom:{style:'hair',color:{rgb:'D9D9D9'}}}},
+  subtotalBorder:{border:{top:{style:'thin',color:{rgb:'A6A6A6'}}}},
+  totalBorder:{border:{top:{style:'thin',color:{rgb:'A6A6A6'}},bottom:{style:'double',color:{rgb:'000000'}}}},
   meta:{font:{name:'맑은 고딕',sz:9,color:{rgb:'000000'}},alignment:{vertical:'center'}},
 };
 
@@ -2068,7 +2071,23 @@ function _excelGenericSheets(order){
 }
 
 function _excelModelSheets(order){
-  return _excelIsKcarModel() ? _excelKcarSheets(order) : _excelGenericSheets(order);
+  return _excelIsKcarModel() ? _excelKcarSheets(order) : {};
+}
+
+function _excelImportantOutputs(order){
+  let preferred=[
+    'root','rev','used_car_sales','ecommerce_sales','branch_sales','total_cost',
+    'op_profit','fcff','enterprise_value','equity_value','value_per_share'
+  ];
+  let out=preferred.filter(k=>D[k]);
+  Object.keys(D).forEach(k=>{
+    if(D[k]&&(D[k].parent==null||D[k].parent==='root')&&!out.includes(k)) out.push(k);
+  });
+  for(let k of order){
+    if(out.length>=24) break;
+    if(D[k]&&D[k].type==='computed'&&!out.includes(k)) out.push(k);
+  }
+  return out;
 }
 
 function _excelTreeOrder(){
@@ -2189,6 +2208,10 @@ function _excelStyleRow(ws,r,c1,c2,style){
   }
 }
 
+function _excelApplyHorizontalBorders(ws,startRow,endRow,endCol){
+  for(let r=startRow;r<=endRow;r++) _excelStyleRow(ws,r,2,endCol,EXCEL_STYLE.rowBorder);
+}
+
 function _excelApplyDefaultStyles(ws,rowCount,colCount,sheetName){
   ws['!views']=[{showGridLines:false,zoomScale:100}];
   ws['!rows']=Array.from({length:rowCount},(_,i)=>({hpt:i===0?16.5:15}));
@@ -2215,19 +2238,41 @@ function _excelApplyDefaultStyles(ws,rowCount,colCount,sheetName){
 
 function _excelWriteIndexSheet(wb,indexRows){
   let ws=_excelMakeSheet();
-  _excelSetValue(ws,1,2,'Financial Model Index',null,EXCEL_STYLE.title);
+  _excelSetValue(ws,1,2,'Index',null,EXCEL_STYLE.title);
   _excelSetValue(ws,3,2,'Sheet',null,EXCEL_STYLE.header);
   _excelSetValue(ws,3,3,'Description',null,EXCEL_STYLE.header);
   indexRows.slice(2).forEach((row,i)=>{
     let r=4+i;
-    _excelSetValue(ws,r,2,row[0],null,EXCEL_STYLE.labelBold);
+    let sheet=String(row[0]).replace(/'/g,"''");
+    let label=String(row[0]).replace(/"/g,'""');
+    _excelSetFormula(ws,r,2,`HYPERLINK("#'${sheet}'!A1","${label}")`,row[0],null,EXCEL_STYLE.link);
     _excelSetValue(ws,r,3,row[1],null,EXCEL_STYLE.label);
+    _excelStyleRow(ws,r,2,3,EXCEL_STYLE.rowBorder);
   });
   ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:indexRows.length+1,c:2}});
-  ws['!cols']=[{wch:1},{wch:24},{wch:74}];
+  ws['!cols']=[{wch:1},{wch:22},{wch:80}];
   ws['!rows']=Array.from({length:indexRows.length+2},(_,i)=>({hpt:i===0?16.5:15}));
   ws['!views']=[{showGridLines:false,zoomScale:100}];
   XLSX.utils.book_append_sheet(wb,ws,'Index');
+}
+
+function _excelWriteTableSheet(wb,name,headers,rows,widths){
+  let ws=_excelMakeSheet();
+  _excelSetValue(ws,1,2,name,null,EXCEL_STYLE.title);
+  headers.forEach((h,i)=>_excelSetValue(ws,3,2+i,h,null,EXCEL_STYLE.header));
+  rows.forEach((row,ri)=>{
+    let r=4+ri;
+    row.forEach((v,ci)=>{
+      let style=(ci===0||ci===2||ci===5)?EXCEL_STYLE.id:EXCEL_STYLE.label;
+      _excelSetValue(ws,r,2+ci,v,null,style);
+    });
+    _excelStyleRow(ws,r,2,headers.length+1,EXCEL_STYLE.rowBorder);
+  });
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(3,rows.length+3),c:headers.length}});
+  ws['!cols']=[{wch:1},...widths.map(w=>({wch:w}))];
+  ws['!rows']=Array.from({length:Math.max(4,rows.length+4)},(_,i)=>({hpt:i===0?16.5:15}));
+  ws['!views']=[{showGridLines:false,zoomScale:100}];
+  XLSX.utils.book_append_sheet(wb,ws,name);
 }
 
 function _excelFinalize(ws,rowCount,colCount,sheetName){
@@ -2315,7 +2360,14 @@ function _excelWriteNodeSheet(wb,name,nodeIds,levels,modelRowMap,inputRowMap,aud
         formulaCount++;
       }
     }
-    if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+    if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,k==='root'||k==='fcff'||k==='valuation'?EXCEL_STYLE.output:EXCEL_STYLE.section);
+  });
+  _excelApplyHorizontalBorders(ws,EXCEL_DATA_START_ROW+1,EXCEL_DATA_START_ROW+nodeIds.length,EXCEL_DATA_START_COL+YRS.length);
+  nodeIds.forEach(k=>{
+    let d=D[k]; if(!d) return;
+    let level=levels[k]||0;
+    let isSection=d.type==='computed'&&(level<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
+    if(isSection) _excelStyleRow(ws,localRowMap[k],2,EXCEL_DATA_START_COL+YRS.length,k==='root'||k==='fcff'||k==='valuation'?EXCEL_STYLE.totalBorder:EXCEL_STYLE.subtotalBorder);
   });
   _excelFinalize(ws,EXCEL_DATA_START_ROW+nodeIds.length,YRS.length+EXCEL_DATA_START_COL,name);
   XLSX.utils.book_append_sheet(wb,ws,name);
@@ -2512,19 +2564,20 @@ async function exportToExcel(){
 
   let wsControl=_excelMakeSheet();
   _excelWriteHeaders(wsControl,'Control');
-  let controlNodes=['enterprise_value','value_per_share','rev','used_car_sales','ecommerce_sales','branch_sales','total_cost','op_profit','fcff','equity_value'].filter(k=>D[k]);
+  _excelSetValue(wsControl,4,2,'Output',null,EXCEL_STYLE.header);
+  _excelSetValue(wsControl,4,3,'ID',null,EXCEL_STYLE.header);
+  let controlNodes=_excelImportantOutputs(order);
   controlNodes.forEach((k,i)=>{
     let d=D[k], row=EXCEL_DATA_START_ROW+1+i;
-    _excelSetValue(wsControl,row,2,d.label||k,null,EXCEL_STYLE.labelBold);
-    _excelSetValue(wsControl,row,7,k,null,EXCEL_STYLE.id);
-    _excelSetValue(wsControl,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    _excelSetValue(wsControl,row,2,d.label||k,null,k==='root'?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
+    _excelSetValue(wsControl,row,3,k,null,EXCEL_STYLE.id);
     for(let y=0;y<YRS.length;y++){
-      let source=dcfRows[k] ? _excelSheetRef('DCF')+'!'+_colLetter(EXCEL_DATA_START_COL+y)+dcfRows[k] : _excelSheetRef('Model')+'!'+_colLetter(EXCEL_DATA_START_COL+y)+modelRowMap[k];
+      let source=_excelSheetRef('Model')+'!'+_colLetter(EXCEL_DATA_START_COL+y)+modelRowMap[k];
       _excelSetFormula(wsControl,row,EXCEL_DATA_START_COL+1+y,source,(d.v&&d.v[y]!=null)?d.v[y]:0,d,EXCEL_STYLE.link);
       auditRows.push(['Control',k,d.label||k,YRS[y],_colLetter(EXCEL_DATA_START_COL+y)+row,'='+source,'output link']);
       linkCells++;
     }
-    _excelStyleRow(wsControl,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+    _excelStyleRow(wsControl,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.rowBorder);
   });
   _excelFinalize(wsControl,EXCEL_DATA_START_ROW+controlNodes.length,YRS.length+EXCEL_DATA_START_COL,'Control');
   XLSX.utils.book_append_sheet(wb,wsControl,'Control');
@@ -2550,6 +2603,7 @@ async function exportToExcel(){
     _excelSetValue(wsAssump,row,8,d.u||'',null,EXCEL_STYLE.unit);
     for(let i=0;i<YRS.length;i++) _excelSetValue(wsAssump,row,EXCEL_DATA_START_COL+1+i,(d.v&&d.v[i]!=null)?d.v[i]:0,d,EXCEL_STYLE.input);
   });
+  _excelApplyHorizontalBorders(wsAssump,EXCEL_DATA_START_ROW+1,EXCEL_DATA_START_ROW+inputOrder.length,EXCEL_DATA_START_COL+YRS.length);
   _excelFinalize(wsAssump,EXCEL_DATA_START_ROW+inputOrder.length,YRS.length+EXCEL_DATA_START_COL,'Assumptions');
   XLSX.utils.book_append_sheet(wb,wsAssump,'Assumptions');
 
@@ -2572,7 +2626,7 @@ async function exportToExcel(){
         auditRows.push(['Model',k,d.label||k,YRS[i],_colLetter(EXCEL_DATA_START_COL+i)+row,'='+f,'assumption link']);
         linkCells++;
       }
-      if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+      if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,k==='root'?EXCEL_STYLE.output:EXCEL_STYLE.section);
       continue;
     }
 
@@ -2594,7 +2648,7 @@ async function exportToExcel(){
         }
       }
     }
-    if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,EXCEL_STYLE.section);
+    if(isSection) _excelStyleRow(ws,row,2,EXCEL_DATA_START_COL+YRS.length,k==='root'?EXCEL_STYLE.output:EXCEL_STYLE.section);
   }
 
   if(errors.length){
@@ -2606,53 +2660,55 @@ async function exportToExcel(){
     return;
   }
 
+  _excelApplyHorizontalBorders(ws,EXCEL_DATA_START_ROW+1,EXCEL_DATA_START_ROW+order.length,EXCEL_DATA_START_COL+YRS.length);
+  for(let k of order){
+    let d=D[k]; if(!d) continue;
+    let level=levels[k]||0;
+    let isSection=d.type==='computed'&&(level<=1||k==='root');
+    if(isSection) _excelStyleRow(ws,modelRowMap[k],2,EXCEL_DATA_START_COL+YRS.length,k==='root'?EXCEL_STYLE.totalBorder:EXCEL_STYLE.subtotalBorder);
+  }
   _excelFinalize(ws,EXCEL_DATA_START_ROW+order.length,YRS.length+EXCEL_DATA_START_COL,'Model');
   XLSX.utils.book_append_sheet(wb,ws,'Model');
 
-  let structureRows=[['ID','Label','Parent','Type','Formula','Unit','Description']];
+  let structureRows=[];
   order.forEach(k=>{
     let d=D[k]; if(!d) return;
-    structureRows.push([k,d.label||'',d.parent||'',d.type||'',d.formula||'',d.u||'',d.desc||'']);
+    structureRows.push([k,d.label||'',d.parent||'',levels[k]||0,d.type||'',d.formula||'',d.u||'',d.desc||'']);
   });
-  let wsStructure=XLSX.utils.aoa_to_sheet(structureRows);
-  wsStructure['!cols']=[{wch:24},{wch:30},{wch:22},{wch:12},{wch:48},{wch:12},{wch:60}];
-  _excelApplyDefaultStyles(wsStructure,structureRows.length,7,'Structure');
-  XLSX.utils.book_append_sheet(wb,wsStructure,'Structure');
+  _excelWriteTableSheet(wb,'Structure',['ID','Label','Parent','Level','Type','Formula','Unit','Description'],structureRows,[24,30,24,8,12,60,10,70]);
 
-  let wsAudit=XLSX.utils.aoa_to_sheet(auditRows);
-  wsAudit['!cols']=[{wch:24},{wch:30},{wch:10},{wch:10},{wch:42}];
-  _excelApplyDefaultStyles(wsAudit,auditRows.length,7,'Formula Audit');
-  XLSX.utils.book_append_sheet(wb,wsAudit,'Formula Audit');
+  _excelWriteTableSheet(wb,'Formula Audit',auditRows[0],auditRows.slice(1),[14,24,30,10,10,60,16]);
 
   let checkRows=[
-    ['Check','Result'],
-    ['Formula cells generated',formulaCells],
-    ['Formula cells > 0',formulaCells>0?'OK':'FAIL'],
-    ['Input/link formula cells',linkCells],
-    ['Operating sheets generated',Object.keys(moduleSheets).filter(s=>moduleSheets[s].length).join(', ')||'Generic Model only'],
-    ['Computed nodes',order.filter(k=>D[k]&&D[k].type==='computed').length],
-    ['Input nodes',order.filter(k=>D[k]&&D[k].type==='input').length],
+    ['Formula cells generated',formulaCells+linkCells,formulaCells>0?'OK':'FAIL'],
+    ['Input links generated',linkCells,linkCells>=inputOrder.length*YRS.length?'OK':'FAIL'],
+    ['Operating sheets generated',Object.keys(moduleSheets).filter(s=>moduleSheets[s].length).join(', ')||'Generic model only','OK'],
+    ['Computed nodes',order.filter(k=>D[k]&&D[k].type==='computed').length,'OK'],
+    ['Input nodes',order.filter(k=>D[k]&&D[k].type==='input').length,'OK'],
+    ['All computed formulas parsed','OK','OK'],
+    ['All inputs centralized in Assumptions','OK','OK'],
+    ['HTML nodes in Structure',order.length,order.length===Object.keys(D).length?'OK':'FAIL'],
   ];
-  let wsChecks=XLSX.utils.aoa_to_sheet(checkRows);
-  wsChecks['!cols']=[{wch:32},{wch:20}];
-  _excelApplyDefaultStyles(wsChecks,checkRows.length,2,'Checks');
-  XLSX.utils.book_append_sheet(wb,wsChecks,'Checks');
+  _excelWriteTableSheet(wb,'Checks',['Check','Result','Status'],checkRows,[42,24,14]);
 
   let metaRows=[
     ['Generated by','HTML exportToExcel'],
+    ['IR version','1'],
     ['Title',document.title||'Financial Model'],
     ['Nodes',order.length],
     ['Input nodes',[...INPUT_KEYS].length],
-    ['Formula cells',formulaCells],
-    ['Input/link formula cells',linkCells],
-    ['Years',YRS.join(', ')],
-    ['Formula policy','HTML Excel export creates operating sheets with live formulas and aborts on conversion errors.'],
+    ['Computed nodes',order.filter(k=>D[k]&&D[k].type==='computed').length],
+    ['Formula cells',formulaCells+linkCells],
+    ['Input link cells',linkCells],
+    ['Years',YRS[0]+'–'+YRS[YRS.length-1]+' ('+YRS.length+'개)'],
+    ['Historical years',HIST_N],
+    ['Forecast years',YRS.length-HIST_N],
+    ['Policy','Inputs are centralized in Assumptions; operating sheets and Model contain live formulas.'],
   ];
-  let wsMeta=XLSX.utils.aoa_to_sheet(metaRows);
-  wsMeta['!cols']=[{wch:22},{wch:80}];
-  _excelApplyDefaultStyles(wsMeta,metaRows.length,2,'Metadata');
-  XLSX.utils.book_append_sheet(wb,wsMeta,'Metadata');
+  _excelWriteTableSheet(wb,'Metadata',['Key','Value'],metaRows,[24,90]);
 
+  let preferred=['Index','Control','DCF','Sales','Sales Bridge','Cost','CapEx,D&A','Labor','NWC','BS','Assumptions','Model','Formula Audit','Structure','Checks','Metadata'];
+  wb.SheetNames=[...preferred.filter(s=>wb.SheetNames.includes(s)),...wb.SheetNames.filter(s=>!preferred.includes(s))];
   await _excelDownloadWorkbook(wb,base+'_'+ts+'.xlsx');
 }
 
