@@ -593,35 +593,32 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
 
 ## Part 5. 실습 예시
 
-- 케이카 2023 완성 모델 분석 기반 실습 진행
+- 테슬라(TSLA) 매출 모델 설계 기반 실습 진행
 - LLM과 대화하며 HTML Framework 업데이트
 - HTML 구조 합의 후 Excel 모델로 전환
 
 ---
 
-## 16. 예시 1: 케이카 2023 Excel 모델 기반 구조화
+## 16. 예시 1: 테슬라 매출 모델 구조화
 
-- 케이카
-  - 중고차 매입 / 판매, 이커머스, 지점내방, 경매, 렌터카 매출을 가진 중고차 유통 사업자
+- 테슬라
+  - 전기차 판매를 중심으로 에너지 저장·솔라, 서비스/기타 매출을 가진 제조·에너지 사업자
 
 - 주요 매출원
-  - 이커머스 중고차 판매
-  - 지점내방 중고차 판매
-  - 경매
-  - 렌터카
-  - 용역 / 기타
+  - Automotive (차량판매 · 리스 · 규제크레딧)
+  - Energy (저장장치 · 솔라)
+  - Services & Other (서비스 · 중고차 · 슈퍼차저)
 
 - 핵심 드라이버
-  - 차급별 시장판매대수
-  - 케이카 점유율
-  - 평균판매가격
-  - 중고차 1대당 원가
-  - 보증비
-  - 인건비 생산성
-  - WACC와 Terminal Growth
+  - 인도량(deliveries)
+  - 모델별 ASP
+  - 테슬라 점유율
+  - 에너지 저장 배포(GWh)와 $/kWh
+  - 규제크레딧 (정책 시나리오)
+  - 누적 보유대수
 
 - 예시 BM / 모델 구조
-  - [examples/kcar-2023/kcar_bm_model_structure.md](../examples/kcar-2023/kcar_bm_model_structure.md)
+  - [examples/Tesla/tesla_bm_revenue_methodology.md](../examples/Tesla/tesla_bm_revenue_methodology.md)
 
 ---
 
@@ -629,7 +626,7 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
 
 - 실습 순서
   - 사람이 먼저 사업모델을 언어로 정리
-  - 케이카처럼 기존 Excel 모델을 LLM이 분석해 BM/모델 구조를 언어화 가능
+  - 테슬라처럼 공시·리서치로 매출 로직을 신규 설계해 BM/모델 구조를 언어화 가능
   - Claude 또는 Codex에게 매출원/비용/자금조달 구조 분해 요청
   - 사람이 잘못된 분해나 누락 드라이버 지적
   - LLM에게 `framework/template.html`의 `D`와 `TREE` 업데이트 요청

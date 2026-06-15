@@ -53,4 +53,4 @@ open projects/<회사명>/index.html  # 브라우저에서 확인
 
 ## 예시 구조
 
-[../examples/kcar-2023/kcar_bm_model_structure.md](../examples/kcar-2023/kcar_bm_model_structure.md) — 완성된 Excel 모델을 분석해 HTML과 Excel 구현 전에 BM / 모델 구조를 언어화한 예시.
+[../examples/Tesla/tesla_bm_revenue_methodology.md](../examples/Tesla/tesla_bm_revenue_methodology.md) — 공시·리서치로 매출 로직을 신규 설계해 HTML과 Excel 구현 전에 BM / 모델 구조를 언어화한 예시.

@@ -26,12 +26,12 @@ Claude나 Codex 같은 LLM을 활용해 비상장 기업 재무모델을 만드�
 │   ├── build_excel.py             # BM/HTML 구조 → Excel 생성 스크립트
 │   └── requirements.txt
 ├── examples/
-│   └── kcar-2023/
-│       ├── kcar_bm_model_structure.md  # 케이카 2023 BM / 모델 구조
-│       ├── kcar_2023_financial_model.html # 케이카 인터랙티브 HTML 모델
-│       ├── kcar_2023_ir.json           # HTML 모델 IR export
-│       ├── kcar_2023_financial_model.xlsx # 수식 기반 Excel 모델
-│       └── (Financial model) 케이카_2023.xlsx
+│   └── Tesla/
+│       ├── tesla_bm_revenue_methodology.md # 테슬라 매출 설계도 (BM / 모델 구조)
+│       ├── conversation_transcript.md      # 실제 LLM 대화 전사본
+│       ├── tesla_revenue_model.html        # 테슬라 인터랙티브 HTML 모델
+│       ├── tesla_revenue_ir.json           # HTML 모델 IR export
+│       └── tesla_revenue_model.xlsx        # 수식 기반 Excel 모델
 ├── design-guide/
 │   ├── design_system.md           # 디자인 시스템 가이드
 │   └── tokens.js                  # 디자인 토큰
@@ -103,9 +103,9 @@ Excel 프레임워크:
 
 프로젝트별 예시:
 
-- [examples/kcar-2023/kcar_bm_model_structure.md](examples/kcar-2023/kcar_bm_model_structure.md)
-- [examples/kcar-2023/kcar_2023_financial_model.html](examples/kcar-2023/kcar_2023_financial_model.html)
-- [examples/kcar-2023/kcar_2023_financial_model.xlsx](examples/kcar-2023/kcar_2023_financial_model.xlsx)
+- [examples/Tesla/tesla_bm_revenue_methodology.md](examples/Tesla/tesla_bm_revenue_methodology.md)
+- [examples/Tesla/tesla_revenue_model.html](examples/Tesla/tesla_revenue_model.html)
+- [examples/Tesla/tesla_revenue_model.xlsx](examples/Tesla/tesla_revenue_model.xlsx)
 
 ---
 
