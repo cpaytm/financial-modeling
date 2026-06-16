@@ -1,6 +1,6 @@
-﻿# Financial Modeling with LLM, HTML, and Excel
+# Financial Modeling with LLM, HTML, and Excel
 
-Claude나 Codex 같은 LLM을 활용해 비상장 기업 재무모델을 만드는 강의 교안 repo입니다.
+Claude나 Codex 같은 LLM을 활용해 재무모델을 만드는 강의 교안 repo입니다.
 
 핵심 메시지는 단순히 “AI로 Excel을 빨리 만든다”가 아닙니다. 모델링 전에 사업모델을 언어로 정리하고, LLM과 대화하면서 드라이버 구조를 잡고, HTML 인터랙티브 트리로 머릿속 모델을 시각화한 뒤, 그 구조를 기반으로 Excel 모델을 만드는 작업법을 다룹니다.
 
