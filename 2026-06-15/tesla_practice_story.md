@@ -1,7 +1,7 @@
-# 테슬라 실습 스토리 — 웹 Claude로 매출모델 트리 만들기
+# 테슬라 실습 스토리: 웹 Claude로 매출모델 트리 만들기
 
 작성일: 2026-06-15 · 대상: 3시간 강의 라이브 데모 + 수강생 실습
-진행 환경: **웹 Claude(claude.ai)** — 로컬 파일 편집 없이 아티팩트로 진행함
+진행 환경: **웹 Claude(claude.ai)**: 로컬 파일 편집 없이 아티팩트로 진행함
 준거 자료: [tesla_bm_revenue_methodology.md](../examples/Tesla/tesla_bm_revenue_methodology.md) · [conversation_transcript.md](../examples/Tesla/conversation_transcript.md) · [template.html](../framework/template.html)
 
 ---
@@ -29,7 +29,7 @@
 ## 2. 준비물 (강의 전 세팅)
 
 - claude.ai에 **프로젝트 1개** 생성함
-- 프로젝트 파일로 업로드함 (채팅창에 붙여넣지 않음 — 토큰 낭비·깨짐 방지):
+- 프로젝트 파일로 업로드함 (채팅창에 붙여넣지 않음: 토큰 낭비·깨짐 방지):
   - `framework/template.html` (146KB 스켈레톤)
   - `examples/Tesla/tesla_bm_revenue_methodology.md` (테슬라 매출 설계도)
 - **D 완성본을 미리 1회 생성해 따로 저장함** (폴백용)
@@ -90,7 +90,7 @@ Automotive를 Q×P로 재귀 분해해줘.
 
 - `automotive_sales = Σ(deliveries_model × asp_model)`
 - `deliveries_model3y` [주관·수요제약] = EV시장 × 점유율
-- `regulatory_credits` [주관·외생] — Q×P 분해 안 함, 정책 step-down
+- `regulatory_credits` [주관·외생]: Q×P 분해 안 함, 정책 step-down
 - 생산능력 상한(`production_capacity` [객관])으로 수요 캡 체크
 
 **확인할 것**
@@ -105,7 +105,7 @@ Automotive를 Q×P로 재귀 분해해줘.
 
 ---
 
-### Scene 3. 공유 드라이버 식별 — 인도량 (7분) ★핵심
+### Scene 3. 공유 드라이버 식별: 인도량 (7분) ★핵심
 
 **입력**
 
@@ -136,7 +136,7 @@ Automotive를 Q×P로 재귀 분해해줘.
 
 ### Scene 4. `D` 블록 채우기 (10분)
 
-**입력 (표준 프롬프트 — 그대로 복붙)**
+**입력 (표준 프롬프트: 그대로 복붙)**
 
 ```text
 지금까지 합의한 테슬라 매출(Automotive·Energy·Services) 구조로
@@ -182,7 +182,7 @@ Automotive를 Q×P로 재귀 분해해줘.
 
 **확인할 것**
 
-- "내가 채운 건 `D` 하나인데 `TREE`·`simCalc`·시뮬레이터가 **자동으로 채워졌다**"를 보여줌 — 이 장면이 데모의 절정임
+- "내가 채운 건 `D` 하나인데 `TREE`·`simCalc`·시뮬레이터가 **자동으로 채워졌다**"를 보여줌: 이 장면이 데모의 절정임
 - 트리 색이 토큰을 따르는지 봄 (매출 남색 / 비용 회색 / 이익 초록)
 - 매출원이 빠짐없이 나오는지, Q와 P가 섞이지 않았는지 눈으로 검토함
 
@@ -210,8 +210,8 @@ Automotive를 Q×P로 재귀 분해해줘.
 
 ### Scene 7. Excel 전환 한 줄 마무리 (2분)
 
-- HTML에서 구조가 합의되면, 같은 구조를 Excel 수식으로 **닫음** (발명 아님)
-- Excel에서 수식·시트가 바뀌면 **BM md와 HTML도 같이 고침** — 세 산출물은 서로 검증하는 세 층임
+- HTML에서 구조가 합의되면, 같은 구조를 Excel 수식으로 **정확히 구현함** (새로 발명하는 게 아님)
+- Excel에서 수식·시트가 바뀌면 **BM md와 HTML도 같이 고침**: 세 산출물은 서로 검증하는 셋임
 - 단방향 흐름: BM md → HTML → IR JSON → Excel
 
 ---
