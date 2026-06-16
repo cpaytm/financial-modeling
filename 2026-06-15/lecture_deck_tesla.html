@@ -118,6 +118,25 @@ svg{display:block;}
 .muted{color:var(--muted);}
 .row{display:flex;gap:16px;}
 .kbd{font-family:var(--font-h);font-size:11px;font-weight:600;border:1px solid #3A3A40;border-radius:5px;padding:2px 6px;color:#9A9CA6;}
+
+/* chat bubbles (대화 교본) */
+.chat{display:flex;flex-direction:column;gap:11px;margin-top:8px;flex:1;justify-content:center}
+.bubble{max-width:84%;padding:12px 16px;border-radius:14px;font-size:13.5px;line-height:1.6}
+.bubble .who{font-family:var(--font-h);font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;opacity:.75}
+.bubble.user{align-self:flex-end;background:var(--rev);color:#fff;border-bottom-right-radius:4px}
+.bubble.user .who{color:var(--p200)}
+.bubble.ai{align-self:flex-start;background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px;color:var(--body)}
+.bubble.ai .who{color:var(--input)}
+.bubble.ai b{color:var(--ink)}
+.bubble.user b{color:#fff}
+.teach{margin-top:14px;padding:12px 16px;border-radius:10px;background:#E9FBF0;border:1px solid #BBF0CD;font-size:13px;color:#15803D;display:flex;gap:9px;align-items:flex-start;line-height:1.55}
+.teach .lbl{font-family:var(--font-h);font-weight:700;white-space:nowrap;color:#166534}
+.teach b{color:#166534}
+.phasemap{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px;flex:1}
+.phasecol .ch{font-family:var(--font-h);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;padding-bottom:7px;border-bottom:2px solid}
+.phasecol ol{margin:0;padding-left:20px}
+.phasecol li{font-size:13px;line-height:1.95;color:var(--body)}
+.phasecol li b{color:var(--ink);font-weight:600}
 </style>
 </head>
 <body>
@@ -336,6 +355,129 @@ svg{display:block;}
       <p class="fine" style="margin-top:14px">출처: framework/html_framework.md</p>
     </div>
   </div>
+</section>
+
+<!-- ===== 대화 교본 챕터 (실제 전사본 기반) ===== -->
+
+<!-- 교본 개요: 13단계 맵 -->
+<section class="slide dark">
+  <div class="eyebrow" style="color:var(--p200)">실전 대화 교본 · examples/Tesla/conversation_transcript.md</div>
+  <h2 class="title" style="color:#fff">이 대화 43턴이 그대로 교본임</h2>
+  <p class="lead" style="margin-top:10px;font-size:16px">· 추상 이론이 아니라, 실제 테슬라 매출모델을 만든 대화를 13단계로 따라감</p>
+  <div class="phasemap">
+    <div class="phasecol">
+      <div class="ch" style="color:#fff;border-color:var(--revSub,#3332D0)">설계 (1~5)</div>
+      <ol>
+        <li><b>BM 구조화</b> — 매출−비용=이익</li>
+        <li><b>과거 데이터</b> 6개년 확보</li>
+        <li><b>Q×P 분해</b> — 내재단가 역산</li>
+        <li><b>추정로직</b> — 수요/공급/외생</li>
+        <li><b>md 설계</b> — Case B</li>
+      </ol>
+    </div>
+    <div class="phasecol">
+      <div class="ch" style="color:#fff;border-color:var(--input)">확정·구현 (6~11)</div>
+      <ol start="6">
+        <li><b>결정론적 확정</b> — 10-K reconcile</li>
+        <li><b>HTML 트리</b> — D만 채움</li>
+        <li><b>모델 세분화</b> — 3모델 PQ</li>
+        <li><b>추정기간</b> 2031까지</li>
+        <li><b>실적 잠금</b> · UI 정제</li>
+      </ol>
+    </div>
+    <div class="phasecol">
+      <div class="ch" style="color:#fff;border-color:var(--profit)">빌드·검증 (12~13)</div>
+      <ol start="12">
+        <li><b>Excel 빌드</b> — build_excel.py</li>
+        <li><b>HTML↔Excel 대사</b> — 200셀 0오차</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 교본 단계 1: BM 구조화 -->
+<section class="slide">
+  <div class="eyebrow">교본 1단계 · BM 구조화</div>
+  <h2 class="title">바로 모델 말고, BM부터 언어화</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>테슬라 영업이익 추정을 할 거야. 매출−비용=이익 큰 구조로, 매출 먼저. 리서치해서 <b>테슬라 BM을 구조화해서 매출추정방법론을 정리</b>해봐</div>
+    <div class="bubble ai"><div class="who">Claude</div>산출물 형태·추정단위·기간을 먼저 확인 → <b>Automotive(73%) / Energy(13%) / Services(13%)</b> 3세그먼트로 분해. “Q×P로 쪼갤 항목”과 “외생으로 둘 항목”을 구분.</div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· LLM이 바로 모델을 뱉지 않고 <b>통제 질문(단위·기간)을 먼저 함</b> · 매출을 세그먼트 트리로 먼저 언어화함</span></div>
+</section>
+
+<!-- 교본 단계 2~3: 데이터 + Q/P -->
+<section class="slide alt">
+  <div class="eyebrow">교본 2~3단계 · 과거 데이터 + Q×P</div>
+  <h2 class="title">추정 전, 다년 시계열과 내재단가</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>과거데이터 확보 됐어?</div>
+    <div class="bubble ai"><div class="who">Claude</div>FY2020~2025 6개년 세그먼트 매출·인도량·GWh 시계열 확보. 인도량 2023 정점 후 2년 감소, ASP 동반 하락, 에너지 저장 매년 ~2배.</div>
+    <div class="bubble user"><div class="who">사용자</div>오케이 그럼 <b>각 세그먼트별 Q, P가 정리</b>되어야해</div>
+    <div class="bubble ai"><div class="who">Claude</div>매출÷물량으로 <b>내재단가 역산</b> — 차량 ASP $51K(’22)→$40K(’25), 에너지 $/kWh 601→273.</div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· 추정 전에 <b>다년 시계열</b>을 먼저 깖 · 단가는 직접 찾기보다 <b>매출÷물량으로 역산</b>함</span></div>
+</section>
+
+<!-- 교본 단계 4: 추정로직 -->
+<section class="slide">
+  <div class="eyebrow">교본 4단계 · 추정로직</div>
+  <h2 class="title">수요·공급·외생으로 가르고, 인도량은 한 번만</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>오케이 그럼 <b>추정단위, 각 단위별 추정로직</b> 정리해봐</div>
+    <div class="bubble ai"><div class="who">Claude</div>기존차=수요제약(top-down 시장×점유율), 신차·에너지=공급제약(bottom-up capacity×가동률), 규제크레딧=외생 시나리오. <b>인도량은 한 번만 추정해 차량판매·서비스·ASP믹스 3곳에 연결.</b></div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· 추정방식을 <b>수요/공급/외생 3분류</b>로 명확히 가름 · <b>공유 드라이버는 한 번만 추정</b>하고 나머지가 참조함</span></div>
+</section>
+
+<!-- 교본 단계 6: 결정론적 확정 ★ -->
+<section class="slide alt">
+  <div class="eyebrow">교본 6단계 · 결정론적 확정 ★</div>
+  <h2 class="title">LLM 근사치를 원문으로 닫는다</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>[검증대상] 라인(차량판매/리스 분할)을 10-K로 먼저 확정. <b>이게 무슨말이지?</b></div>
+    <div class="bubble ai"><div class="who">Claude</div>합계·크레딧은 확정값이지만 차량판매/리스 분할은 <b>합계−크레딧−추정리스로 거꾸로 계산한 근사치</b>임. 10-K 원문 세 줄로 교체하자는 뜻.</div>
+    <div class="bubble user"><div class="who">사용자</div>그렇다면 정확한 값 확정이 좋아</div>
+    <div class="bubble ai"><div class="who">Claude</div>10-K/8-K 원문으로 전 연도 확정, 6개년 <b>reconcile 통과</b>. ’25 리스 1,500→<b>1,712</b>, 총매출 94,817→<b>94,827</b> 정정.</div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· LLM이 만든 <b>근사치를 그대로 두지 않음</b> · 숫자는 추정으로 때우지 말고 <b>원문·코드로 결정론적으로 닫음</b></span></div>
+</section>
+
+<!-- 교본 단계 7~8: HTML -->
+<section class="slide">
+  <div class="eyebrow">교본 7~8단계 · HTML 트리</div>
+  <h2 class="title">D 하나만 채우면 나머지는 자동, 트리는 대화로 세분화</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>template 참고해서 HTML 작성 시작해.</div>
+    <div class="bubble ai"><div class="who">Claude</div><b>D 하나만 채우면 TREE·INPUT_KEYS·시뮬레이터·simCalc이 자동 파생</b>됨을 파악. 과거 4개년 reconcile 오차 0으로 완성.</div>
+    <div class="bubble user"><div class="who">사용자</div>차량판매를 Model 3/Y · S/X·Cyber · 신규저가 <b>3개로 나누고 각 매출을 PQ로 쪼개</b>줘</div>
+    <div class="bubble ai"><div class="who">Claude</div>3개 모델 매출 노드 + 인도량×ASP 중간계층 추가. 결합법칙이라 합계·reconcile 불변(’25 차량판매 65,821 일치).</div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· 손으로 채우는 건 <b>D 하나</b> · 트리는 대화로 <b>점진 세분화</b>하되 합계는 불변임</span></div>
+</section>
+
+<!-- 교본 단계 10~12: 정제 + Excel -->
+<section class="slide alt">
+  <div class="eyebrow">교본 10~12단계 · 산출물 정제 → Excel</div>
+  <h2 class="title">실적 잠금·표기 통일, 그리고 수식 Excel</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>Historical(확정값)은 변동 못하게 / 소수점 통일 / <b>Forecast는 2026년부터</b></div>
+    <div class="bubble ai"><div class="who">Claude</div>실적 구간을 <b>HIST_N 상수로 일급화</b>, fmtSmart 포맷터로 표기 통일. 표·차트 모두 Historical/Forecast 구분.</div>
+    <div class="bubble user"><div class="who">사용자</div>build_excel 참조해서 Excel 빌드 시작해</div>
+    <div class="bubble ai"><div class="who">Claude</div>build_excel.py로 수식이 박힌 8시트 빌드. 10개 연도 reconcile 오차 0.</div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· 산출물을 <b>대화로 다듬음</b> · 발견한 결함은 개선 가이드로 <b>환류</b>해 다음 모델링에 반영함</span></div>
+</section>
+
+<!-- 교본 단계 13: 검증 -->
+<section class="slide">
+  <div class="eyebrow">교본 13단계 · 검증</div>
+  <h2 class="title">HTML과 Excel을 셀 단위로 대사</h2>
+  <div class="chat">
+    <div class="bubble user"><div class="who">사용자</div>HTML, 엑셀 숫자 <b>대사해서 검증</b>해봤어?</div>
+    <div class="bubble ai"><div class="who">Claude</div>20노드 × 10연도 = <b>200개 셀 전부</b> 대사. 최대 절대오차 <b>0.000e+00</b>, 불일치 <b>0건</b>. HTML 엔진 산출값과 Excel 수식 평가값이 부동소수점 전 자리까지 동일.</div>
+  </div>
+  <div class="teach"><span class="lbl">배우는 것</span><span>· 산출물 간 정합성은 말이 아니라 <b>셀 단위 대사로 증명</b>함 · 과거 reconcile=0이 결정론 모델의 검증 게이트임</span></div>
 </section>
 
 <!-- 13. DEMO: WEB CLAUDE overview -->
