@@ -80,8 +80,8 @@
 
 ### 2.2 두 산출물의 역할
 
-- **HTML 인터랙티브 트리**: 추정 로직의 시각적 분해, 가정변수 노출, 시뮬레이터, 객관/주관 구분, 시나리오 케이스 — **Excel 구현 전에 구조를 검토하는 자리**
-- **엑셀 모델**: 회계·감사·실무의 표준 산출물. 표준 템플릿(FAST 등)에 따라 시트 구조·수식·명명범위·검증 셀이 결정론적으로 생성됨 — **최종 산출물의 자리**
+- **HTML 인터랙티브 트리**: 추정 로직의 시각적 분해, 가정변수 노출, 시뮬레이터, 객관/주관 구분, 시나리오 케이스. **Excel 구현 전에 구조를 검토하는 단계**
+- **엑셀 모델**: 회계·감사·실무의 표준 산출물. 표준 템플릿(FAST 등)에 따라 시트 구조·수식·명명범위·검증 셀이 결정론적으로 생성됨. **최종 산출물**
 
 HTML은 단순 시각화가 아니라 **Excel 모델링 지시서 겸 검토 인터페이스** 역할을 한다. 트리에서 확정된 구조가 Excel의 시트, 행, 수식, 가정변수로 옮겨진다. JSON/IR은 자동화가 필요할 때 쓰는 보조 형식이며, 핵심 목표는 수식이 들어간 Excel 모델을 정확히 구현하는 것이다.
 
@@ -275,14 +275,14 @@ EV/EBITDA, PER, PSR. DCF와 병행 산출하여 교차 검증.
 단일 HTML 파일 내 5개 모듈.
 
 ```
-┌─ 데이터 계층 (Data Layer)            YRS, HIST_N, D
+┌─ 데이터 계층 (Data Layer)            YRS, HIST_N, MODEL
 ├─ 파생 인덱스                         INPUT_KEYS, TREE, DEFAULTS_S, SIM_SECS
 ├─ 렌더링 엔진 (Canvas)                doLayout, drawNode, drawConns, hitTest, pan/zoom/drag
 ├─ UI 컴포넌트                         차트 팝업 · 브릿지 · 재무제표 · 가정변수 일람
 └─ 시뮬레이션                          simCalc, SV/SR, SIM_SECS 슬라이더, _cases 관리
 ```
 
-외부 의존성은 Chart.js CDN 하나뿐. 나머지는 인라인 JavaScript.
+외부 의존성은 CDN 3개(Chart.js · SheetJS · JSZip)와 웹폰트뿐. 아이콘은 SVG로 인라인, 나머지 로직도 전부 인라인 JavaScript.
 
 ---
 
@@ -322,7 +322,7 @@ const MODEL = {
 INPUT_KEYS = new Set(Object.keys(MODEL).filter(k => MODEL[k].type === 'input'));
 ```
 
-`type:'input'`인 노드는 트리에서 **주황색 점(●) + "가정변수: 하드코딩"** 라벨이 붙고, 시뮬레이터·가정변수표에 자동 편입된다. 별도 `INPUT_KEYS` 수기 작성은 하지 않는다.
+`type:'input'`인 노드는 트리에서 **점(●) 마크**가 붙고(`semantic.input` `#5D68F7`), 시뮬레이터·가정변수표에 자동 편입된다. 별도 `INPUT_KEYS` 수기 작성은 하지 않는다.
 
 ### 9.3 `YRS` — 시간축
 
@@ -348,7 +348,7 @@ const DEFAULTS_S = deriveDefaultsFromModel(); // MODEL의 input 노드 v에서 �
 let SV = {}; for (let k in DEFAULTS_S) SV[k] = DEFAULTS_S[k].slice();
 ```
 
-- `DEFAULTS_S`: 원본 실적/사업계획값. 절대 변경하지 않음. 슬라이더의 주황색 마크 위치.
+- `DEFAULTS_S`: 원본 실적/사업계획값. 절대 변경하지 않음. 슬라이더의 초안 마크 위치.
 - `SV`: 현재 시뮬레이터 상태. 슬라이더 조작 시에만 변경.
 - "기본값" 버튼은 `SV ← DEFAULTS_S` 복사.
 - `DEFAULTS_S`를 수기로 다시 쓰지 않는다. `MODEL`와 기본값의 이중 입력을 막기 위함이다.
@@ -360,7 +360,7 @@ let SV = {}; for (let k in DEFAULTS_S) SV[k] = DEFAULTS_S[k].slice();
 ### 10.1 MODEL.parent 기반 자동 트리
 
 ```js
-D = {
+MODEL = {
   root: {label:'P&L', parent:null, type:'computed', formula:'op_profit', ...},
   rev: {label:'매출 합계', parent:'root', type:'computed', formula:'used_car_sales + auction_sales', ...},
   used_car_sales: {label:'중고차 판매', parent:'rev', type:'computed', formula:'ecommerce_sales + branch_sales', ...},
@@ -555,7 +555,7 @@ function row(label, key, indent, bold, color, parentGroup) {
 [계산] 매출 = 판매대수 × ASP. 판매대수는 시장판매대수 × 점유율.
 ```
 
-선두 대괄호 태그는 모달의 색상 칩으로 표시되고, 본문은 마침표 기준 불릿으로 나뉜다.
+본문은 마침표 기준 불릿으로 나뉜다. 선두 대괄호 태그는 **화면에 노출되지 않는다** — `descBody()`가 렌더 직전에 벗겨낸다.
 
 ### 12.5 숫자 표기 규칙
 
@@ -614,7 +614,7 @@ function _getAffectedYears() {
 ┌────────────────────────────────────────┐
 │ 변수명 (연도)   기본값↺   현재값      │
 │ ▬▬▬●▬▬|▬▬▬▬▬▬▬   (단일 값 슬라이더)  │
-│              ▲ 주황 마크 = 기본값      │
+│              ▲ 마크 = 초안 기본값      │
 │ ±%  ▬▬▬▬|▬▬▬▬▬   +0%   ↺              │
 │      (-50 ~ +100% 일괄 조정)           │
 └────────────────────────────────────────┘
@@ -622,7 +622,7 @@ function _getAffectedYears() {
 
 - **단일 값 슬라이더**: 선택된 연도들에 같은 값 일괄 적용
 - **±% 슬라이더**: mousedown 시점의 `SV[k]`를 base로 잡고 `base × (1+pct/100)` 적용
-- **기본값 마크**: `DEFAULTS_S[k][dispYr]`이 range 안에 있으면 주황 점 표시
+- **기본값 마크**: `DEFAULTS_S[k][dispYr]`이 range 안에 있으면 점으로 표시
 - **기본값 링크**: 어느 연도든 기본값과 다르면 표시, 클릭 시 모든 연도 복귀
 
 ### 13.4 케이스 (시나리오) 관리
@@ -671,7 +671,7 @@ formula:'market_volume * share * asp'
 | `SUM(a,b,c)` | 같은 연도 합산 |
 | `MIN(a,b)` / `MAX(a,b)` / `AVG(a,b)` | 같은 연도 기준 계산 |
 | `IF(cond,a,b)` | 조건식 |
-| `PREV(x)` | 전년도 값. `PREV(self)` 롤포워드 지원 |
+| `PREV(x)` | 전년도 값. **자기참조(`PREV(self)`)는 HTML 엔진에서 지원하지 않는다** |
 | `SUMALL(x)` | 전체 기간 합계 |
 | `LAST(x)` / `FIRST(x)` | 마지막/첫 연도 값 |
 
@@ -684,18 +684,24 @@ formula:'market_volume * share * asp'
 | **Proportional Scaling** | 세부 분해를 단순화한 항목 | 상세 차급 매출, 감가상각, 보험료 |
 | **외삽 (실적값 + 비율)** | 인건비 등 인원·단가 곱 | labor = headcount × avg_salary |
 
-### 14.3 `PREV(self)` 롤포워드
+### 14.3 롤포워드 항목 (자기참조)
 
-재무모델에서 B/S 잔액, 누적 구독자, 차입금, 이익잉여금은 자기참조 롤포워드가 자주 필요하다.
+B/S 잔액, 누적 구독자, 차입금, 이익잉여금처럼 **전년 잔액 + 당해 증감** 형태는 자기참조가 필요하다.
 
 ```js
 installed_base: {
   type:'computed',
-  formula:'PREV(installed_base) + new_units'
+  formula:'PREV(installed_base) + new_units'   // HTML 엔진에서는 동작하지 않는다
 }
 ```
 
-엔진은 `PREV(self)`의 self dependency를 순환참조로 보지 않고, 연도 순차 평가로 계산한다. 첫 연도의 `PREV()`는 0으로 처리한다. 기준연도 시작 잔액이 필요하면 별도 input 노드(`opening_balance`)를 두고 `opening_balance + PREV(self) + delta` 형태로 작성한다.
+**HTML 엔진은 이 형태를 계산하지 못한다.** `evalAst`가 연도 배열을 한 번에 계산하는 단일 패스 구조라(`template.html`의 `PREV` 구현), `PREV(x)`는 `x`의 전 연도 배열이 이미 완성돼 있어야 한다. 자기 자신은 그럴 수 없다. `extractDeps`가 self 참조를 그대로 남기므로 위상정렬에서 제외되고, 평가 시 `미정의 변수` 오류가 난다.
+
+**현재 우회 방법**은 그 노드를 `input`으로 두고 연도별 값을 직접 넣는 것이다. 테슬라 모델의 `installed_base`가 이 방식이고, `desc`에 그 사실과 Excel 단계에서 수식으로 배선한다는 점을 적어 두었다.
+
+**Excel 내보내기는 자기참조를 지원한다.** `build_excel.py`가 의존성 집합에서 자기 자신을 제거하고(`_deps`의 `acc.discard(k)`), 셀 참조로 전년 열을 가리키는 수식을 만든다. 즉 롤포워드는 Excel 단계에서 살아난다.
+
+HTML에서도 지원하려면 자기참조 노드만 연도 순차로 평가하는 경로를 엔진에 추가해야 한다.
 
 ### 14.4 Proportional Scaling 공식
 
@@ -734,7 +740,7 @@ _updateActiveCase()             (5) 활성 케이스에 자동 저장
 ### 15.1 SaaS (구독 모델)
 
 ```js
-D = {
+MODEL = {
   new_signups: {parent:'cum_subs', type:'input', v:[...], u:'명', desc:'[객관] 마케팅 채널별 신규 가입.'},
   churn:       {parent:'cum_subs', type:'input', v:[...], u:'%', pct:1, desc:'[주관] 월간 이탈률.'},
   cum_subs:    {parent:'rev', type:'computed', formula:'PREV(cum_subs) * (1 - churn) + new_signups', v:[...], u:'명', desc:'[계산] 전년 누적 구독자에서 이탈을 차감하고 신규 가입자를 더함.'},
@@ -930,7 +936,7 @@ IR/JSON은 Excel 생성을 돕는 보조 계약이다. 엑셀 생성기는 필�
 
 ---
 
-## 22. LLM의 자리
+## 22. LLM의 역할 범위
 
 확률성 격리 원칙(§2.3)을 구체화.
 

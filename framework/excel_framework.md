@@ -54,7 +54,7 @@ python3 -m venv .venv
 | Index | 시트 목록과 링크 |
 | Control | 핵심 결과 요약 |
 | Assumptions | 모든 하드코딩 입력값 |
-| Model | HTML `D.formula`를 기간별 Excel 수식으로 전개한 계산 엔진 |
+| Model | HTML `MODEL[k].formula`를 기간별 Excel 수식으로 전개한 계산 엔진 |
 | Formula Audit | 생성된 모든 수식 셀 목록 |
 | Structure | ID, Label, Parent, Type, Formula, Unit, Description |
 | Checks | 수식 개수, 입력 링크, 구조 정합성 검증 |

@@ -27,7 +27,7 @@
 
 ```bash
 cp framework/template.html examples/<회사명>/index.html
-# 편집기로 열어 ★ 블록 1(YRS/HIST_N)과 ★ 블록 2(D)를 채운다
+# 편집기로 열어 YRS / HIST_N / MODEL 세 블록을 채운다
 open examples/<회사명>/index.html
 ```
 

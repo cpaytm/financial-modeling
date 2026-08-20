@@ -49,7 +49,7 @@
 
 ## 확률성 격리 (LLM 사용 시)
 
-[framework/html_modeling_framework.md](framework/html_modeling_framework.md) §2.3 / §12.
+[framework/html_modeling_framework.md](framework/html_modeling_framework.md) §22.
 
 - LLM은 **비정형 → 정형 변환만**
 - 숫자 계산·합계·할인·회계 규칙 적용은 **결정론적 코드**

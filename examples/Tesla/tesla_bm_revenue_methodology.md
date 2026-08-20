@@ -2,7 +2,7 @@
 
 **Case B — 리서치 기반 신규 설계 / 매출(Revenue) 파트**
 작성 기준일: 2026-05-25 · 단위: USD millions (별도 표기 제외)
-방법론 준거: `Reference/framework/html_modeling_framework.md` Part I (§4 Q×P 재귀분해, §4.3 객관/주관 구분, §5.2 매출-비용 교차참조)
+방법론 준거: [`../../framework/html_modeling_framework.md`](../../framework/html_modeling_framework.md) Part I (§4 Q×P 재귀분해, §4.3 객관/주관 구분, §5.2 매출-비용 교차참조)
 
 > 본 문서는 테슬라 영업이익 추정(매출 − 비용 = 영업이익)의 **매출 레이어 설계도**다.
 > 이후 HTML 인터랙티브 트리(`D` / `INPUT_KEYS` / `TREE`) → IR JSON → Excel 모델로 단방향 변환된다.
@@ -231,8 +231,8 @@ service_rev_per_unit     [주관]
 [Excel 매출 모델]  Sales 시트 (모델별 Q×P), Assumptions 집중, Checks 백테스트
 ```
 
-- HTML 단계: 본 §2 트리를 `TREE = N(...)`로, §8을 `INPUT_KEYS`로, §3 시계열을 `D[key].v`로 적재. 디자인은 `Reference/design-guide` 토큰 준수(매출=primary.900, 입력변수=primary.500).
-- Excel 단계: `Reference/framework/excel_modeling_framework.md` 표준(컬러코딩·시트구조·Checks) 준수. §3 라인아이템은 10-K 확정값이므로 그대로 historical 입력값(파란색)으로 적재.
+- HTML 단계: 본 §2 트리와 §8 가정변수, §3 시계열을 전부 `MODEL` 한 객체에 적재. `TREE`·`INPUT_KEYS`는 `MODEL`에서 자동 파생되므로 직접 쓰지 않는다. 디자인은 [`../../design-guide`](../../design-guide) 토큰 준수(매출=primary.900, 입력변수=primary.500).
+- Excel 단계: [`../../framework/excel_modeling_framework.md`](../../framework/excel_modeling_framework.md) 표준(컬러코딩·시트구조·Checks) 준수. §3 라인아이템은 10-K 확정값이므로 그대로 historical 입력값(파란색)으로 적재.
 - 검증: §3 실적에 §4~5 로직을 역적용한 Case B 백테스트로 오차 확인.
 
 ---

@@ -69,8 +69,6 @@ BM 브리프 템플릿:
 
 - [course/templates/bm_brief.md](course/templates/bm_brief.md)
 
-HTML 슬라이드는 아직 만들지 않았고, 추후 [course/slides-html](course/slides-html)에 추가합니다.
-
 ---
 
 ## Frameworks

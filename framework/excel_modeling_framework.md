@@ -62,7 +62,7 @@ Excel 모델 생성의 기준 입력은 BM md와 HTML에서 확정한 모델 구
   "version": 1,
   "YRS": ["2023", "2024", "2025"],
   "HIST_N": 1,
-  "D": {
+  "MODEL": {
     "node_id": {
       "label": "매출",
       "parent": "root",
@@ -97,7 +97,7 @@ Excel 모델 생성의 기준 입력은 BM md와 HTML에서 확정한 모델 구
 | 필드 | 의미 |
 |---|---|
 | `pct` | 퍼센트 표시 |
-| `point` | EV, Equity Value, 주당가치처럼 기준일 단일 산출값 |
+| `point` | EV, Equity Value, 주당가치처럼 기준일 단일 산출값. **아직 미구현** |
 | `desc` | Structure/Metadata 설명 |
 | `c`, `bg`, `fg` | HTML 시각화용 색상 |
 
@@ -122,7 +122,7 @@ HTML과 Excel builder는 같은 수식 언어를 사용합니다. 코워커/LLM�
 
 - 같은 연도 계산은 일반 수식으로 둡니다.
 - 기준일 단일 산출값은 `SUMALL`, `LAST`, `FIRST`를 사용합니다.
-- `point: 1` 노드는 UI/Excel에서 시계열이 아니라 단일 output으로 해석합니다.
+- `point: 1` 노드는 시계열이 아니라 단일 output으로 해석한다는 **설계 의도**입니다. `template.html`과 `build_excel.py` 어디에도 아직 구현돼 있지 않으므로, 지금은 일반 노드와 동일하게 처리됩니다.
 
 ---
 
@@ -250,24 +250,24 @@ ws.column_dimensions["A"].width = 1
 
 - 들여쓰기 대신 열 분리로 계층 표현
 
-| 레벨 | 위치 | 예시 |
-|---|---|---|
-| Level 1 | B열 | 매출, 비용, EBITDA, FCFF |
-| Level 2 | C열 | 임대수익, 인건비, 감가상각비 |
-| Level 3 | D열 | % YoY, % of Sales, 1대당 원가 |
-| Level 4 | E열 | 가격, 판매대수, 단가 |
-| Level 5+ | F열 이후 | 시장규모, 점유율 등 |
+계정명은 **깊이와 무관하게 F열 한 곳**에 쓰고, 트리 깊이는 Excel 들여쓰기(`alignment.indent`)로 표현합니다.
 
-- 핵심 원칙
-  - 마지막 레벨 라벨 열만 넓게 설정
-  - 이전 라벨 레벨 열은 폭 1로 두어 텍스트 overflow 허용
-  - 데이터 시작 직전 열을 가장 넓게 잡아 라벨과 숫자 간격 확보
+| 열 | 내용 |
+|---|---|
+| A~E | 여백 (폭 2) |
+| F | 계정명 (폭 46, 들여쓰기로 깊이 표현) |
+| G | 노드 id (폭 22) |
+| H | 단위 (폭 12) |
+| I 이후 | 연도별 값 (폭 14) |
+
+- 깊이에 따라 B~F로 열을 옮겨 적는 방식은 폐기했습니다. 그 방식은 **옆 칸이 비어 있어야만** 글자가 넘쳐 보이므로, 테두리나 음영 때문에 옆 칸에 무엇이든 들어가는 순간 계정명이 잘립니다.
 
 ```python
-for col in ["A", "B", "C", "D", "E"]:
-    ws.column_dimensions[col].width = 1
-ws.column_dimensions["F"].width = 32
-ws.column_dimensions["I"].width = 14
+for col in ("A", "B", "C", "D", "E"):
+    ws.column_dimensions[col].width = 2
+ws.column_dimensions["F"].width = 46      # 계정명
+ws.column_dimensions["G"].width = 22      # id
+ws.column_dimensions["H"].width = 12      # 단위
 ```
 
 ### 7.3 데이터 컬럼 너비
@@ -531,9 +531,9 @@ FMT_YEAR = "General"
 def setup_sheet(ws, title=None):
     ws.sheet_view.showGridLines = False
     ws.sheet_view.zoomScale = 100
-    for col in ["A", "B", "C", "D", "E"]:
-        ws.column_dimensions[col].width = 1
-    ws.column_dimensions["F"].width = 32
+    for col in ("A", "B", "C", "D", "E"):
+        ws.column_dimensions[col].width = 2
+    ws.column_dimensions["F"].width = 46
 
     if title:
         ws["B1"] = title
@@ -545,13 +545,15 @@ def setup_sheet(ws, title=None):
 
 ```python
 def write_label(ws, row, level, text, bold=False, sub=False):
-    from openpyxl.utils import get_column_letter
+    from openpyxl.styles import Alignment
 
-    col = get_column_letter(2 + level)  # B=Level 1
-    cell = ws.cell(row=row, column=2 + level)
+    cell = ws.cell(row=row, column=LABEL_COL)          # 항상 F열
     cell.value = text
     cell.font = FONT_LABEL_SUB if sub else FONT_LABEL_BOLD if bold else FONT_LABEL
-    cell.alignment = ALIGN_LEFT
+    cell.alignment = Alignment(                        # 깊이는 들여쓰기로
+        horizontal="left", vertical="center",
+        indent=max(0, min(level, MAX_LABEL_LEVELS)),
+    )
     return cell
 ```
 
@@ -629,13 +631,12 @@ def put_link(ws, cell_addr, formula, fmt=FMT_ACCT):
 
 - 전역 설정
   - [ ] 모든 시트에서 격자선이 꺼져 있는가
-  - [ ] A~E 열 너비가 1인가
+  - [ ] A~E 열이 여백이고 F열이 넓은가
   - [ ] 틀고정이 없는가
   - [ ] 시트 제목과 단위가 명시되어 있는가
 
 - 레이아웃
-  - [ ] 레벨이 다른 라벨이 서로 다른 열에 배치되었는가
-  - [ ] 마지막 레벨 라벨 열만 넓고 이전 열들은 좁은가
+  - [ ] 계정명이 전부 F열에 있고 깊이가 들여쓰기로 표현되었는가
   - [ ] Historical / Forecast 구분이 명확한가
   - [ ] Forecast가 병합 없이 선택 범위 가운데 표시인가
 

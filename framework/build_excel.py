@@ -1033,11 +1033,12 @@ def main() -> int:
     with in_path.open(encoding="utf-8") as f:
         data = json.load(f)
 
-    if "D" not in data or "YRS" not in data:
+    if ("MODEL" not in data and "D" not in data) or "YRS" not in data:
         print("잘못된 JSON 형식: 'D'와 'YRS' 키 필요", file=sys.stderr)
         return 1
 
-    print(f"읽음: {in_path} ({len(data['D'])}개 노드, {len(data['YRS'])}년)")
+    nodes = data.get("MODEL") or data["D"]
+    print(f"읽음: {in_path} ({len(nodes)}개 노드, {len(data['YRS'])}년)")
     build_workbook(data, out_path)
     print(f"생성: {out_path}")
     return 0

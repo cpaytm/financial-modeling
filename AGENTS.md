@@ -23,7 +23,7 @@
 ### 새 HTML 산출물 만들 때
 
 1. [framework/template.html](framework/template.html)을 복사해 출발점으로 사용
-2. `YRS`, `HIST_N`, `D`만 회사 데이터로 채움 ([framework/html_framework.md](framework/html_framework.md) 참조)
+2. `YRS`, `HIST_N`, `MODEL`만 회사 데이터로 채움 ([framework/html_framework.md](framework/html_framework.md) 참조)
 3. 엔진·UI 코드는 손대지 않음
 4. 색은 토큰값을 hex로 인라인하되 주석으로 토큰 이름 표기:
    ```js
@@ -49,7 +49,7 @@
 
 ## 확률성 격리 (LLM 사용 시)
 
-[framework/html_modeling_framework.md](framework/html_modeling_framework.md) §2.3 / §12.
+[framework/html_modeling_framework.md](framework/html_modeling_framework.md) §22.
 
 - LLM은 **비정형 → 정형 변환만**
 - 숫자 계산·합계·할인·회계 규칙 적용은 **결정론적 코드**

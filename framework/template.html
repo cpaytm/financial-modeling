@@ -447,18 +447,16 @@ svg.fmchart{display:block;width:100%;height:auto;overflow:visible}
 //
 // framework/html_modeling_framework.md의 Part II 구현 청사진. 회사별 데이터·트리·계산식을
 // 채워 단일 HTML 산출물로 사용. 엔진(렌더링·UI·시뮬레이터·케이스 관리)은
-// 그대로 두고 아래 표시된 5개 블록만 회사에 맞게 수정한다.
+// 그대로 두고 아래 3개 블록만 회사에 맞게 수정한다.
 //
 // 채워야 할 블록:
-//   1. YRS          — 시간축 (실적+추정 연도 배열)
-//   2. MODEL            — 데이터 객체 (모든 시계열)
-//   3. INPUT_KEYS   — 입력 변수 식별
-//   4. TREE         — 트리 구조
-//   5. P&L 테이블   — showRevTable() 안의 row() 호출
-//   6. 가정변수표   — showAssumptions() 안의 sections[]
-//   7. DEFAULTS_S   — 기본값 보존
-//   8. simCalc()    — 시뮬레이션 엔진
-//   9. SIM_SECS     — 슬라이더 정의
+//   1. YRS      — 시간축 (실적 연도 먼저, 추정 연도 뒤)
+//   2. HIST_N   — 확정 실적 연도 수
+//   3. MODEL    — 데이터 객체 (계정 · 수식 · 값 · 근거)
+//
+// 나머지는 MODEL에서 자동 파생된다:
+//   TREE · INPUT_KEYS · DEFAULTS_S · SIM_SECS · GRAPH
+//   P&L 테이블 · 가정변수표 · 시뮬레이터 · 검증 항목
 // ============================================================
 
 // YRS — 시간축. 첫 항목은 관행상 실적 연도 (시뮬레이터에서 잠금).
@@ -1803,7 +1801,7 @@ function _storageSafeId(s){
 }
 const _MODEL_ID=_storageSafeId(document.documentElement.dataset.modelId||document.title+'_'+location.pathname);
 const _STORAGE_KEY='fm_model_state_'+_MODEL_ID;
-let _DRAFT_MODEL=null, _DRAFT_MODELEFAULTS_S=null;  // 초안 스냅샷 (리셋용)
+let _DRAFT_MODEL=null, _DRAFT_DEFAULTS_S=null;  // 초안 스냅샷 (리셋용)
 let _SOURCE_SIGNATURE=null;
 let _saveTimer=null;
 
@@ -1823,9 +1821,9 @@ function _serializeModel(){
 
 function snapshotDraft(){
   _DRAFT_MODEL=_serializeModel();
-  _DRAFT_MODELEFAULTS_S={};
-  for(let k in DEFAULTS_S) _DRAFT_MODELEFAULTS_S[k]=DEFAULTS_S[k].slice();
-  _SOURCE_SIGNATURE=_hashString(_stableJson({MODEL:_DRAFT_MODEL,DEFAULTS_S:_DRAFT_MODELEFAULTS_S,YRS:YRS}));
+  _DRAFT_DEFAULTS_S={};
+  for(let k in DEFAULTS_S) _DRAFT_DEFAULTS_S[k]=DEFAULTS_S[k].slice();
+  _SOURCE_SIGNATURE=_hashString(_stableJson({MODEL:_DRAFT_MODEL,DEFAULTS_S:_DRAFT_DEFAULTS_S,YRS:YRS}));
 }
 
 function saveToStorage(){
@@ -1868,7 +1866,7 @@ function resetToDraft(){
   for(let k in _DRAFT_MODEL) MODEL[k]=JSON.parse(JSON.stringify(_DRAFT_MODEL[k]));
   // DEFAULTS_S / SV 복원
   for(let k in DEFAULTS_S) delete DEFAULTS_S[k];
-  for(let k in _DRAFT_MODELEFAULTS_S) DEFAULTS_S[k]=_DRAFT_MODELEFAULTS_S[k].slice();
+  for(let k in _DRAFT_DEFAULTS_S) DEFAULTS_S[k]=_DRAFT_DEFAULTS_S[k].slice();
   for(let k in SV) delete SV[k];
   for(let k in DEFAULTS_S) SV[k]=DEFAULTS_S[k].slice();
   // 케이스 클리어
@@ -2095,6 +2093,9 @@ function topoSort(){
     }
     visiting.add(k);
     let d=MODEL[k];
+    // 이전 회차의 오류는 여기서 지운다. 아래 분기 안에서만 지우면
+    // computed였다가 input으로 바뀐 노드에 옛 오류가 영원히 남는다.
+    if(d) d._error=null;
     if(d && d.type==='computed' && d.formula){
       try{
         if(!d._ast) d._ast=parseFormula(d.formula);
