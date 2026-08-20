@@ -200,16 +200,14 @@ HTML과 Excel builder는 같은 수식 언어를 사용합니다. 코워커/LLM�
 
 Custom Layer는 회사별 모델 구조에 맞게 운영 시트를 추가합니다.
 
-KCar 예시:
+예를 들어 밸류에이션까지 가는 모델이라면 이런 시트를 얹습니다:
 
 | 시트 | 역할 |
 |---|---|
 | `DCF` | FCFF, Terminal Value, Enterprise Value |
-| `Sales` | 채널별/차급별 Q x P |
-| `Sales Bridge` | 매출 구성 브릿지 |
+| `Sales` | 채널별 Q x P |
 | `Cost` | 변동비/고정비 |
 | `CapEx,D&A` | 투자와 감가상각 |
-| `Labor` | 인건비 |
 | `NWC` | 운전자본 |
 | `BS` | 순차입금/주식수 등 valuation 연결 항목 |
 
@@ -627,20 +625,7 @@ def put_link(ws, cell_addr, formula, fmt=FMT_ACCT):
 
 ---
 
-## 18. 현재 KCar 적용 상태
-
-KCar 모델은 Monoframe 위에 KCar Custom Layer를 얹은 예시입니다.
-
-- `Sales`: 이커머스/지점내방, 차급별 Q x P
-- `Cost`: 재고자산원가, 보증비, 차량매각원가, 판관비
-- `Labor`: 직원수 x 평균급여
-- `NWC`: 운전자본과 증가분
-- `DCF`: FCFF, Terminal Value, Enterprise Value
-- `Enterprise Value`, `Equity Value`, `주당가치`: pinpoint output
-
----
-
-## 19. 작업 체크리스트
+## 18. 작업 체크리스트
 
 - 전역 설정
   - [ ] 모든 시트에서 격자선이 꺼져 있는가

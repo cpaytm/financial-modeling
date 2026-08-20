@@ -597,11 +597,6 @@ def _ordered_existing(order: list[str], node_ids: list[str]) -> list[str]:
     return [k for k in order if k in wanted]
 
 
-def _is_kcar_ir(D: dict[str, dict]) -> bool:
-    required = {"ecommerce_sales", "branch_sales", "used_car_volume", "fcff", "value_per_share"}
-    return required.issubset(D)
-
-
 def _formula_to_sheet(
     ast: dict,
     year: int,
@@ -755,41 +750,6 @@ def _write_model_sheet(
     return formula_count, link_count
 
 
-def _kcar_sheet_nodes(D: dict[str, dict], order: list[str]) -> dict[str, list[str]]:
-    sales = _descendants(D, "rev") if "rev" in D else []
-    cost_all = _descendants(D, "total_cost") if "total_cost" in D else []
-    labor = _descendants(D, "labor_cost") if "labor_cost" in D else []
-    excluded_cost = set(labor + ["da"])
-    cost = [k for k in cost_all if k not in excluded_cost]
-    capex_da = [k for k in ["capex", "da"] if k in D]
-    nwc = [k for k in ["rev", "nwc_rate", "nwc", "change_nwc"] if k in D]
-    dcf = [
-        k for k in [
-            "rev", "total_cost", "op_profit", "tax_rate", "tax", "ebiat", "da", "capex",
-            "nwc", "change_nwc", "fcff", "wacc", "terminal_growth", "discount_factor",
-            "pv_fcff", "terminal_value", "pv_terminal_value", "enterprise_value",
-            "net_debt", "equity_value", "shares_outstanding", "value_per_share",
-        ] if k in D
-    ]
-    bs = [k for k in ["net_debt", "shares_outstanding", "equity_value", "value_per_share"] if k in D]
-    bridge = [
-        k for k in [
-            "rev", "used_car_sales", "ecommerce_sales", "branch_sales", "auction_sales",
-            "rental_sales", "service_other_sales", "used_car_volume",
-        ] if k in D
-    ]
-    return {
-        "DCF": _ordered_existing(order, dcf),
-        "Sales": _ordered_existing(order, sales),
-        "Sales Bridge": _ordered_existing(order, bridge),
-        "Cost": _ordered_existing(order, cost),
-        "CapEx,D&A": _ordered_existing(order, capex_da),
-        "Labor": _ordered_existing(order, labor),
-        "NWC": _ordered_existing(order, nwc),
-        "BS": _ordered_existing(order, bs),
-    }
-
-
 def build_workbook(data: dict, out_path: Path) -> None:
     # HTML 내보내기는 "MODEL" 키를 쓴다. 예전 파일은 "D"였으므로 둘 다 받는다.
     D: dict[str, dict] = data.get("MODEL") or data["D"]
@@ -818,19 +778,7 @@ def build_workbook(data: dict, out_path: Path) -> None:
     ws_index = wb.active
     ws_index.title = "Index"
     _setup_sheet(ws_index, "Index")
-    is_kcar = _is_kcar_ir(D)
     index_rows = [("Control", "핵심 가정과 주요 결과 요약")]
-    if is_kcar:
-        index_rows.extend([
-            ("DCF", "FCFF, 터미널가치, Equity Value, 주당가치"),
-            ("Sales", "채널별·차급별 Q × P 매출 모델"),
-            ("Sales Bridge", "매출 구성과 주요 드라이버 브릿지"),
-            ("Cost", "재고자산원가, 보증비, 렌터카 원가, 판관비"),
-            ("CapEx,D&A", "투자와 감가상각비"),
-            ("Labor", "필요 인원과 평균급여 기반 인건비"),
-            ("NWC", "매출/비용 연동 운전자본과 △NWC"),
-            ("BS", "순차입금, 주식수, 주주가치 연결"),
-        ])
     index_rows.extend([
         ("Assumptions", "모든 하드코딩 입력값 집중 시트"),
         ("Model", "HTML D 그래프를 기간별 Excel 수식으로 전개한 계산 엔진"),
@@ -936,23 +884,10 @@ def build_workbook(data: dict, out_path: Path) -> None:
                 DATA_START_COL + len(YRS) - 1,
                 BORDER_TOTAL if k == "root" else BORDER_SUBTOTAL,
             )
-    # KCar-style operating sheets. The generic Model sheet remains the canonical
-    # engine; these sheets expose the model in the workbook structure expected by
-    # the Excel modeling guide and the finished KCar reference workbook.
+    # 회사별 전용 시트가 필요하면 여기서 module_sheets를 채운다.
     module_formula_count = 0
     module_link_count = 0
     module_sheets: dict[str, list[str]] = {}
-    if is_kcar:
-        module_sheets = _kcar_sheet_nodes(D, display_order)
-        for sheet_name, node_ids in module_sheets.items():
-            if not node_ids:
-                continue
-            f_count, l_count = _write_model_sheet(
-                wb, sheet_name, sheet_name, node_ids, D, YRS, levels, asts,
-                row_map, input_row_map, formula_audit, hist_n,
-            )
-            module_formula_count += f_count
-            module_link_count += l_count
 
     # Control
     ws_control = wb.create_sheet("Control")

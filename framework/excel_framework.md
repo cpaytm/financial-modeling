@@ -14,7 +14,7 @@ BM md/HTML에서 확정한 구조를 기준으로 **수식이 그대로 박힌 .
 
 - `openpyxl` 기반이라 셀 색, 서식, 테두리, 동결창, 숫자 포맷 등을 풍부하게 지원
 - Excel 모델링 가이드라인 시트 구조 적용: `Index`, `Control`, `Assumptions`, `Model`, `Formula Audit`, `Structure`, `Checks`, `Metadata`
-- 모델별 custom sheet 적용 가능: 예시 KCar는 `DCF`, `Sales`, `Sales Bridge`, `Cost`, `CapEx,D&A`, `Labor`, `NWC`, `BS`
+- 회사별 custom sheet를 얹을 수 있음 (`build_workbook()`의 `module_sheets`)
 - 모든 하드코딩 입력값은 `Assumptions`에 집중
 - `Model` 시트는 입력 링크와 계산 수식으로 구성
 - FAST Standard 색상 코드(파랑=입력, 초록=타 시트 참조, 검정=동일 시트 수식) 적용

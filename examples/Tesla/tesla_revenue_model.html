@@ -969,17 +969,17 @@ function toggleBridgeInline(body,parentSec,yearIdx,barEl){
 
 function renderBridge(fi, ti, parentSec){
   // ============================================================
-  // 브릿지(워터폴) 데이터 — 회사별로 채움
-  // 매출을 분해하는 BM(사업부)별 시계열 + 합계 시계열.
-  // BMS의 합 = TOT 가 매년 일치해야 함.
-  // 색상은 DS 토큰 (primary scale + neutrals) 사용 권장.
+  // 브릿지(워터폴) 데이터 — root의 직계 자식에서 자동 구성.
+  // 예전에는 세그먼트를 이 자리에 하드코딩해서, 그 id가 없는 모델에서는
+  // renderBridge가 그대로 터졌다. 이제 MODEL 구조를 따라간다.
+  // 색은 nodeColor()가 형제 순서로 배정한다 (DS 토큰 램프).
   // ============================================================
-  const BMS={
-    '① Automotive':{v:MODEL.auto_total.v.slice(), c:'#1E2185'},   // primary.900
-    '② Energy':{v:MODEL.energy_total.v.slice(), c:'#3332D0'},      // primary.700
-    '③ Services':{v:MODEL.services_total.v.slice(), c:'#7C91FD'},  // primary.400
-  };
-  const TOT=MODEL.root.v.slice();
+  const _r=rootId();
+  const BMS={};
+  childrenOf(_r).forEach(k=>{
+    BMS[MODEL[k].label||k]={v:(MODEL[k].v||[]).slice(), c:nodeColor(k)};
+  });
+  const TOT=(MODEL[_r].v||[]).slice();
   const bnames=Object.keys(BMS);
   const bfmt=v=>{let a=Math.abs(v),s=v<0?'-':'';if(a>=1e6)return s+(a/1e6).toFixed(1)+'조$'; if(a>=1e3)return s+(a/1e3).toFixed(1)+'십억$'; return s+Math.round(a).toLocaleString()+'백만$'};
 
@@ -2413,41 +2413,6 @@ function _excelOrderedExisting(order, ids){
   return order.filter(k=>wanted.has(k));
 }
 
-function _excelIsKcarModel(){
-  return ['ecommerce_sales','branch_sales','used_car_volume','fcff','value_per_share'].every(k=>MODEL[k]);
-}
-
-function _excelKcarSheets(order){
-  let sales=MODEL.rev?_excelDescendants('rev'):[];
-  let costAll=MODEL.total_cost?_excelDescendants('total_cost'):[];
-  let labor=MODEL.labor_cost?_excelDescendants('labor_cost'):[];
-  let excludedCost=new Set([...labor,'da']);
-  let cost=costAll.filter(k=>!excludedCost.has(k));
-  let capexDa=['capex','da'].filter(k=>MODEL[k]);
-  let nwc=['rev','nwc_rate','nwc','change_nwc'].filter(k=>MODEL[k]);
-  let dcf=[
-    'rev','total_cost','op_profit','tax_rate','tax','ebiat','da','capex',
-    'nwc','change_nwc','fcff','wacc','terminal_growth','discount_factor',
-    'pv_fcff','terminal_value','pv_terminal_value','enterprise_value',
-    'net_debt','equity_value','shares_outstanding','value_per_share'
-  ].filter(k=>MODEL[k]);
-  let bs=['net_debt','shares_outstanding','equity_value','value_per_share'].filter(k=>MODEL[k]);
-  let bridge=[
-    'rev','used_car_sales','ecommerce_sales','branch_sales','auction_sales',
-    'rental_sales','service_other_sales','used_car_volume'
-  ].filter(k=>MODEL[k]);
-  return {
-    'DCF':_excelOrderedExisting(order,dcf),
-    'Sales':_excelOrderedExisting(order,sales),
-    'Sales Bridge':_excelOrderedExisting(order,bridge),
-    'Cost':_excelOrderedExisting(order,cost),
-    'CapEx,MODEL&A':_excelOrderedExisting(order,capexDa),
-    'Labor':_excelOrderedExisting(order,labor),
-    'NWC':_excelOrderedExisting(order,nwc),
-    'BS':_excelOrderedExisting(order,bs),
-  };
-}
-
 function _excelSafeSheetName(name, fallback){
   let s=String(name||fallback||'Sheet').replace(/[\\/?*:[\]]/g,' ').trim()||fallback||'Sheet';
   if(s.length>31) s=s.slice(0,31).trim();
@@ -2473,13 +2438,13 @@ function _excelGenericSheets(order){
 }
 
 function _excelModelSheets(order){
-  return _excelIsKcarModel() ? _excelKcarSheets(order) : {};
+  // 회사별 전용 시트가 필요하면 { 시트명: [노드 id] }를 돌려준다.
+  return {};
 }
 
 function _excelImportantOutputs(order){
   let preferred=[
-    'root','rev','used_car_sales','ecommerce_sales','branch_sales','total_cost',
-    'op_profit','fcff','enterprise_value','equity_value','value_per_share'
+    'root','rev','total_cost','op_profit','fcff','enterprise_value','equity_value','value_per_share'
   ];
   let out=preferred.filter(k=>MODEL[k]);
   Object.keys(MODEL).forEach(k=>{
@@ -2950,14 +2915,6 @@ async function exportToExcel(){
     ['Control','핵심 가정과 주요 결과 요약'],
   ];
   let descMap={
-    'DCF':'FCFF, 터미널가치, Equity Value, 주당가치',
-    'Sales':'채널별·차급별 Q × P 매출 모델',
-    'Sales Bridge':'매출 구성과 주요 드라이버 브릿지',
-    'Cost':'재고자산원가, 보증비, 렌터카 원가, 판관비',
-    'CapEx,MODEL&A':'투자와 감가상각비',
-    'Labor':'필요 인원과 평균급여 기반 인건비',
-    'NWC':'매출/비용 연동 운전자본과 △NWC',
-    'BS':'순차입금, 주식수, 주주가치 연결',
   };
   Object.keys(moduleSheets).filter(s=>moduleSheets[s].length).forEach(s=>{
     indexRows.push([s,descMap[s]||'HTML 모델 구조에서 생성한 계산 시트']);
@@ -3122,7 +3079,7 @@ async function exportToExcel(){
   ];
   _excelWriteTableSheet(wb,'Metadata',['Key','Value'],metaRows,[24,90]);
 
-  let preferred=['Index','Control','DCF','Sales','Sales Bridge','Cost','CapEx,MODEL&A','Labor','NWC','BS','Assumptions','Model','Formula Audit','Structure','Checks','Metadata'];
+  let preferred=['Index','Control','Assumptions','Model','Formula Audit','Structure','Checks','Metadata'];
   wb.SheetNames=[...preferred.filter(s=>wb.SheetNames.includes(s)),...wb.SheetNames.filter(s=>!preferred.includes(s))];
   await _excelDownloadWorkbook(wb,base+'_'+ts+'.xlsx');
 }
