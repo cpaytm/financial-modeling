@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" data-model-id="tesla_revenue_v2">
+<html lang="ko" data-model-id="tesla_revenue">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -166,11 +166,6 @@ canvas#c{display:block;width:100%;height:100%}
   font-family:'Outfit',system-ui,sans-serif;letter-spacing:-.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
 .top-spacer{flex:1}
-.yr-switch{display:flex;align-items:center;gap:6px;padding:0 4px}
-.yr-switch label{font-size:9px;color:#9CA3AF;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase}
-.yr-switch select{border:1px solid #E5E5E8;border-radius:5px;background:#FFFFFF;color:#0F0F12;
-  font-size:11px;font-weight:600;padding:5px 8px;font-family:'Pretendard',sans-serif;cursor:pointer}
 .tb-btn{display:inline-flex;align-items:center;gap:5px;border:1px solid #E5E5E8;background:#FFFFFF;
   border-radius:5px;padding:6px 9px;cursor:pointer;color:#4B5563;/* text.light.body */
   font-size:10.5px;font-weight:600;font-family:'Pretendard',sans-serif;white-space:nowrap}
@@ -259,24 +254,28 @@ canvas#c{display:block;width:100%;height:100%}
 .table-wrap::-webkit-scrollbar-thumb{background:#D1D5DB;border-radius:4px}
 table.fm{width:100%;border-collapse:separate;border-spacing:0}
 table.fm th,table.fm td{padding:7px 9px;border-bottom:1px solid #F3F4F6;white-space:nowrap}
-table.fm th{background:#F9FAFB;color:#6B7280;font-size:9px;font-weight:700;text-align:right;
+/* 행 배경은 전부 background-color로만 지정한다.
+   background 단축 속성을 쓰면 아래 .hist 오버레이(background-image)가 리셋되어
+   실적 구간 음영이 행 종류에 따라 들쭉날쭉하게 보인다. */
+table.fm th{background-color:#F9FAFB;color:#6B7280;font-size:9px;font-weight:700;text-align:right;
   position:sticky;top:0;z-index:1;letter-spacing:.02em}
 table.fm th:first-child,table.fm td:first-child{text-align:left;position:sticky;left:0;z-index:2;
-  background:inherit}
-table.fm th:first-child{background:#F9FAFB}
+  background-color:inherit}
+table.fm th:first-child{background-color:#F9FAFB}
 table.fm td{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;color:#374151;
-  background:#FFFFFF}
+  background-color:#FFFFFF}
 table.fm td:first-child{font-weight:600;color:#0F0F12}
 table.fm tr:last-child td{border-bottom:0}
-table.fm tr.total td{font-weight:700;background:#EDF3FF;color:#1E2185}
-table.fm tr.total td:first-child{background:#EDF3FF}
-table.fm tr.sub td{background:#F8F8FA}
-table.fm tr.sub td:first-child{background:#F8F8FA}
-table.fm tr.drv td{background:#FFFFFF;color:#4B5563}
-table.fm tr:hover td{background:#F8F8FA}
-table.fm tr:hover td:first-child{background:#F8F8FA}
-table.fm th.hist,table.fm td.hist{background:#F3F4F6}
-table.fm tr:hover td.hist{background:#E5E7EB}
+table.fm tr.total td{font-weight:700;background-color:#EDF3FF;color:#1E2185}
+table.fm tr.total td:first-child{background-color:#EDF3FF}
+table.fm tr.sub td{background-color:#F8F8FA}
+table.fm tr.sub td:first-child{background-color:#F8F8FA}
+table.fm tr.drv td{background-color:#FFFFFF;color:#4B5563}
+table.fm tr:hover td{background-color:#F8F8FA}
+table.fm tr:hover td:first-child{background-color:#F8F8FA}
+/* 실적 구간 음영 — 행 배경색을 덮어쓰지 않고 그 위에 균일하게 얹는다 */
+table.fm th.hist,table.fm td.hist{background-image:linear-gradient(rgba(17,24,39,.05),rgba(17,24,39,.05))}
+table.fm tr:hover td.hist{background-image:linear-gradient(rgba(17,24,39,.09),rgba(17,24,39,.09))}
 .cellrow{display:flex;align-items:center;gap:6px}
 .cellrow .lvl{display:inline-block;flex:0 0 auto}
 .rowlink{border:0;background:transparent;padding:0;cursor:pointer;color:inherit;font:inherit;
@@ -350,13 +349,12 @@ svg.fmchart{display:block;width:100%;height:auto;overflow:visible}
         <div class="brand-logo" id="brandLogo">T</div>
         <div style="min-width:0">
           <div class="brand-name" id="brandName">Tesla Revenue Model</div>
-          <div class="brand-sub" id="brandSub">Case B · 10-K 확정 실적 기반</div>
         </div>
       </div>
     </div>
     <div class="side-scroll" id="sideScroll"></div>
     <div class="sidebar-foot">
-      <b id="footTitle">v2 · 2022–2031 · 매출 레이어</b>
+      <b id="footTitle">2022–2031 · 매출 레이어</b>
       <p id="footSub">단위 백만$ · 실적 4개년 + 추정 6개년</p>
     </div>
   </aside>
@@ -366,11 +364,6 @@ svg.fmchart{display:block;width:100%;height:auto;overflow:visible}
       <button class="tb-btn" id="menuBtn" style="display:none" title="메뉴">☰</button>
       <div class="crumb"><small id="crumbPath">Model</small><strong id="crumbTitle">전체 캔버스</strong></div>
       <div class="top-spacer"></div>
-      <div class="yr-switch" title="사이드바 값 · KPI 카드 · 비중 열의 기준 연도. 계산에는 영향 없음">
-        <label for="yrSel">표시 연도</label>
-        <select id="yrSel"></select>
-      </div>
-      <div class="tb-sep"></div>
       <button class="tb-btn" id="btnPL" title="전체 P&amp;L 테이블"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> 테이블</button>
       <button class="tb-btn accent" id="simBtn" title="가정변수 시뮬레이터"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> 시뮬레이터</button>
       <div class="tb-sep"></div>
@@ -653,12 +646,108 @@ const D={
 // ============================================================
 let INPUT_KEYS=new Set();
 let TREE=null;
+let GRAPH=null;
 let SIM_SECS=[];  // 초기 빈 배열, buildSimSecs()이 채움 (선언 순서 의존성 회피)
 
 function rebuildIndexes(){
   INPUT_KEYS = new Set(Object.keys(D).filter(k=>D[k].type==='input'));
   TREE = buildTree();
+  GRAPH = buildGraph();
   if(typeof buildSimSecs==='function') SIM_SECS = buildSimSecs();
+}
+
+// ============================================================
+// GRAPH — D에서 파생되는 그래프 색인
+//
+// D에는 엣지가 두 종류 들어 있다.
+//   parent  → 집계 트리 (화면 구조: 무엇이 무엇에 속하는가)
+//   formula → 계산 의존성 (값의 흐름: 무엇으로부터 계산되는가)
+// 둘은 같지 않다. PREV()나 서브트리를 가로지르는 공유 드라이버가 끼면 갈라진다.
+//
+// 색인 전에는 childrenOf/rootId/depthOf/pathOf가 호출마다 D 전체를 훑어
+// 렌더가 O(n²)였다. 여기서 한 번 만들어두고 전부 조회로 바꾼다.
+//
+// 그리고 formula 엣지의 역방향(dependents)을 처음으로 갖게 된다.
+// "이 값을 바꾸면 무엇이 흔들리는가"에 답할 수 있다는 뜻이다.
+//
+// 의존성 색인(deps/dependents/order)은 topoSort()에 의존하므로 지연 구축한다.
+// rebuildIndexes()는 파일 상단에서도 불리는데, 그 시점엔 파서 쪽 선언이
+// 아직 초기화되지 않았을 수 있다. rebuildIndexes() 뒤엔 항상 simCalc()이
+// 따라오고 simCalc()이 graphDeps()를 부르므로 순서는 보장된다.
+// ============================================================
+function buildGraph(){
+  let g={ children:{}, parent:{}, depth:{}, path:{}, root:null,
+          deps:{}, dependents:{}, order:[], inputs:[], _depsReady:false };
+
+  // ── 트리 엣지 (parent) ──
+  // for..in 순서 = D 정의 순서. 자식 배열 순서가 곧 화면 순서라 유지해야 한다.
+  for(let k in D){
+    let p=D[k].parent;
+    if(p!=null && D[p]){ g.parent[k]=p; (g.children[p]=g.children[p]||[]).push(k); }
+    else { g.parent[k]=null; if(g.root==null) g.root=k; }
+  }
+  if(g.root==null) g.root=Object.keys(D)[0]||null;
+
+  // ── depth / path — 부모 체인을 따라 올라간다 (순환 방어 guard) ──
+  for(let k in D){
+    let arr=[], cur=k, guard=0;
+    while(D[cur] && guard++<60){ arr.unshift(cur); cur=g.parent[cur]; }
+    g.path[k]=arr; g.depth[k]=arr.length-1;
+  }
+
+  g.inputs=Object.keys(D).filter(k=>D[k].type==='input');
+  return g;
+}
+
+// 의존성 색인 지연 구축 — topoSort()가 _ast/_deps를 채우고 순환을 검출한다.
+function graphDeps(){
+  if(!GRAPH) GRAPH=buildGraph();
+  if(GRAPH._depsReady) return GRAPH;
+  let g=GRAPH;
+  g.order=topoSort();
+  g.deps={}; g.dependents={};
+  for(let k in D){
+    let list=[];
+    if(D[k]._deps) D[k]._deps.forEach(x=>{ if(D[x]) list.push(x); });
+    g.deps[k]=list;
+    list.forEach(x=>{ (g.dependents[x]=g.dependents[x]||[]).push(k); });
+  }
+  g._depsReady=true;
+  return g;
+}
+
+// ── 그래프 질의 ──────────────────────────────────────────────
+// 상류: id를 계산하는 데 쓰이는 모든 노드 (formula 엣지 역추적)
+function ancestorsOf(id){
+  let g=graphDeps(), seen=new Set(), stack=[id];
+  while(stack.length){
+    let cur=stack.pop();
+    (g.deps[cur]||[]).forEach(n=>{ if(!seen.has(n)){ seen.add(n); stack.push(n); } });
+  }
+  return [...seen];
+}
+// 하류: id를 (직접·간접으로) 참조하는 모든 노드
+function descendantsOf(id){
+  let g=graphDeps(), seen=new Set(), stack=[id];
+  while(stack.length){
+    let cur=stack.pop();
+    (g.dependents[cur]||[]).forEach(n=>{ if(!seen.has(n)){ seen.add(n); stack.push(n); } });
+  }
+  return [...seen];
+}
+// id를 실제로 움직이는 가정변수. 트리 하위가 아니라 수식 의존성 기준이다.
+function driversOf(id){
+  return ancestorsOf(id).filter(k=>D[k] && D[k].type==='input');
+}
+// 어떤 계산에도 쓰이지 않는 가정변수 — 오타나 삭제 잔재
+function unusedInputs(){
+  let g=graphDeps();
+  return g.inputs.filter(k=>!(g.dependents[k]||[]).length);
+}
+// 두 계정이 함께 물고 있는 가정변수 (매출-비용 교차 참조 §5.2)
+function sharedDrivers(a,b){
+  let A=new Set(driversOf(a));
+  return driversOf(b).filter(k=>A.has(k));
 }
 
 // buildTree() — D의 parent 필드를 따라 시각 트리 구성
@@ -787,7 +876,7 @@ function showChart(node){
     let maxV=Math.max(...vals.map(Math.abs),1);
     let sec=document.createElement('div');sec.className='ds-section';
     if(datasets.length>1||d.desc){let h=document.createElement('div');h.className='ds-label';h.textContent=ds.label;sec.appendChild(h)}
-    if(d.desc){let desc=document.createElement('div');desc.className='ds-desc';desc.textContent=d.desc;sec.appendChild(desc)}
+    if(d.desc){let desc=document.createElement('div');desc.className='ds-desc';desc.textContent=descBody(d.desc);sec.appendChild(desc)}
     let bars=document.createElement('div');bars.className='chart-bars';
     vals.forEach((v,i)=>{
       let wr=document.createElement('div');wr.className='chart-bar-wrap';
@@ -1012,7 +1101,7 @@ function refreshOpenChart(){
     let maxV=Math.max(...vals.map(Math.abs),1);
     let sec=document.createElement('div');sec.className='ds-section';
     if(datasets.length>1||d.desc){let h=document.createElement('div');h.className='ds-label';h.textContent=ds.label;sec.appendChild(h)}
-    if(d.desc){let desc=document.createElement('div');desc.className='ds-desc';desc.textContent=d.desc;sec.appendChild(desc)}
+    if(d.desc){let desc=document.createElement('div');desc.className='ds-desc';desc.textContent=descBody(d.desc);sec.appendChild(desc)}
     let bars=document.createElement('div');bars.className='chart-bars';
     vals.forEach((v,i)=>{
       let wr=document.createElement('div');wr.className='chart-bar-wrap';
@@ -1217,14 +1306,6 @@ function showVarDesc(key){
   if(m){ tags=m[1].split(/[·,]/).map(t=>t.trim()).filter(Boolean); raw=raw.slice(m[0].length); }
   // 본문을 불릿으로 분리: '. ' 기준, 빈 항목 제거, 끝 마침표 제거
   let bullets=raw.split(/\.\s+/).map(s=>s.trim().replace(/\.$/,'')).filter(s=>s.length);
-  // 태그 칩 (객관=중립 회색 / 주관=primary / 외생·계산 등=보조)
-  let chips=tags.map(t=>{
-    let obj=t.indexOf('객관')>=0, sub=t.indexOf('주관')>=0;
-    let bg=obj?'#F3F4F6':(sub?'#EDF3FF':'#F9FAFB');
-    let bd=obj?'#D1D5DB':(sub?'#A1B8FF':'#C5D5FF');
-    let fg=obj?'#374151':(sub?'#1E2185':'#3332D0');
-    return '<span style="display:inline-block;font-size:10px;font-weight:600;color:'+fg+';background:'+bg+';border:1px solid '+bd+';border-radius:10px;padding:2px 9px;margin:0 5px 4px 0">'+t+'</span>';
-  }).join('');
   let lis=bullets.map(b=>'<li style="margin:0 0 7px;line-height:1.55;color:#374151">'+b+'</li>').join('');
   let ov=document.createElement('div');
   ov.className='popup-overlay varDescOverlay';
@@ -1236,7 +1317,6 @@ function showVarDesc(key){
       +'<button onclick="this.closest(\'.varDescOverlay\').remove()" style="border:none;background:none;font-size:19px;color:#D1D5DB;cursor:pointer;line-height:1;padding:0">✕</button>'
     +'</div>'
     +'<div style="font-size:10px;color:#9CA3AF;margin-bottom:12px">단위: '+(d.u||'-')+(D[key].type==='input'?' · 가정변수(하드코딩)':'')+'</div>'
-    +(chips?('<div style="margin-bottom:10px">'+chips+'</div>'):'')
     +'<ul style="margin:2px 0 0;padding-left:18px;font-size:12.5px">'+lis+'</ul>'
     +'</div>';
   document.body.appendChild(ov);
@@ -1264,7 +1344,7 @@ function showAssumptions(){
     return {
       title:(p.label||pid)+' — 드라이버',
       color:p.bg||p.c||'#5D68F7',
-      items:byParent[pid].map(k=>({key:k, label:D[k].label, note:D[k].desc||''}))
+      items:byParent[pid].map(k=>({key:k, label:D[k].label, note:descBody(D[k].desc)}))
     };
   });
 
@@ -2141,7 +2221,7 @@ function topoSort(){
 
 // ----- 메인 simCalc (generic evaluator) -----
 function simCalc(){
-  let order=topoSort();
+  let order=graphDeps().order;   // 구조가 안 바뀌면 위상정렬을 다시 돌리지 않는다
   let env={};
   // 입력값: SV → env, D.v
   for(let k in D){
@@ -2281,6 +2361,9 @@ function _excelNumberFormat(d){
 
 const EXCEL_DATA_START_COL=8; // zero-based I column
 const EXCEL_DATA_START_ROW=4; // zero-based row 5
+const EXCEL_LABEL_COL=6;      // F — 계정명 (트리 깊이는 alignment.indent로)
+const EXCEL_ID_COL=7;         // G — 노드 id
+const EXCEL_UNIT_COL=8;       // H — 단위
 const EXCEL_STYLE={
   title:{font:{name:'Arial',sz:11,bold:true,color:{rgb:'1F4E79'}},alignment:{vertical:'center'}},
   header:{font:{name:'Arial',sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'1F4E79'}},alignment:{horizontal:'center',vertical:'center'},border:{bottom:{style:'thin',color:{rgb:'A6A6A6'}}}},
@@ -2300,6 +2383,13 @@ const EXCEL_STYLE={
   totalBorder:{border:{top:{style:'thin',color:{rgb:'A6A6A6'}},bottom:{style:'double',color:{rgb:'000000'}}}},
   meta:{font:{name:'맑은 고딕',sz:9,color:{rgb:'000000'}},alignment:{vertical:'center'}},
 };
+
+// 기존 스타일에 트리 깊이만큼 들여쓰기를 얹는다.
+// _excelMergeStyle은 얕은 병합이라 alignment를 통째로 다시 준다.
+function _excelIndentStyle(base, level){
+  let a=Object.assign({},base.alignment||{},{vertical:'center',indent:Math.max(0,Math.min(level,8))});
+  return Object.assign({},base,{alignment:a});
+}
 
 function _excelSheetRef(name){
   return "'"+String(name).replace(/'/g,"''")+"'";
@@ -2504,7 +2594,12 @@ function _excelSetValue(ws,r,c,v,d,style){
 }
 
 function _excelSetFormula(ws,r,c,f,v,d,style){
-  _excelSet(ws,r,c,{f:f,v:v==null?0:v,t:'n',z:_excelNumberFormat(d),s:style||EXCEL_STYLE.formula});
+  // 캐시값 타입은 값에서 추론한다. 숫자 셀(t:'n')에 문자열 <v>가 들어가면
+  // Excel이 파일을 손상으로 판단하고 복구 창을 띄운다 (예: Index 시트 HYPERLINK).
+  let val=v==null?0:v;
+  let num=typeof val==='number'&&isFinite(val);
+  if(typeof val==='number'&&!isFinite(val)) val=0, num=true;
+  _excelSet(ws,r,c,{f:f,v:val,t:num?'n':'s',z:num?_excelNumberFormat(d):undefined,s:style||EXCEL_STYLE.formula});
 }
 
 function _excelStyleCell(ws,r,c,style){
@@ -2533,12 +2628,14 @@ function _excelApplyDefaultStyles(ws,rowCount,colCount,sheetName){
       if(!cell) continue;
       if(r===1&&c===2){ cell.s=EXCEL_STYLE.title; continue; }
       if(r===3||r===4){ cell.s=_excelMergeStyle(EXCEL_STYLE.header,cell.s); continue; }
+      // 기본 스타일은 '없을 때 채우는 값'이다. 셀에 이미 지정된 스타일이 이겨야
+      // 계정명의 굵기·들여쓰기가 살아남는다. (예전엔 병합 방향이 반대라 전부 덮였다.)
       if(c>=2&&c<=6){
-        cell.s=_excelMergeStyle(cell.s,cell.v?EXCEL_STYLE.label:EXCEL_STYLE.meta);
-      }else if(c===7){
-        cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.id);
-      }else if(c===8){
-        cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.unit);
+        cell.s=_excelMergeStyle(cell.v?EXCEL_STYLE.label:EXCEL_STYLE.meta,cell.s);
+      }else if(c===EXCEL_ID_COL){
+        cell.s=_excelMergeStyle(EXCEL_STYLE.id,cell.s);
+      }else if(c===EXCEL_UNIT_COL){
+        cell.s=_excelMergeStyle(EXCEL_STYLE.unit,cell.s);
       }else if(c>=EXCEL_DATA_START_COL+1){
         if(sheetName==='Assumptions'&&!cell.f) cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.input);
         else if(cell.f&&String(cell.f).includes('!')) cell.s=_excelMergeStyle(cell.s,EXCEL_STYLE.link);
@@ -2590,8 +2687,8 @@ function _excelWriteTableSheet(wb,name,headers,rows,widths){
 function _excelFinalize(ws,rowCount,colCount,sheetName){
   ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rowCount-1,c:colCount-1}});
   ws['!cols']=[
-    {wch:1},{wch:1},{wch:1},{wch:1},{wch:1},{wch:32},
-    {wch:22},{wch:10},...YRS.map(()=>({wch:14}))
+    {wch:2},{wch:2},{wch:2},{wch:2},{wch:2},{wch:46},   // A~E 여백 · F 계정명
+    {wch:22},{wch:12},...YRS.map(()=>({wch:14}))        // G id · H 단위 · I~ 연도
   ];
   _excelApplyDefaultStyles(ws,rowCount,colCount,sheetName||'');
 }
@@ -2636,7 +2733,9 @@ function _excelWriteHeaders(ws,title){
     _excelSetValue(ws,3,EXCEL_DATA_START_COL+1+HIST_N,'Forecast',null,EXCEL_STYLE.headerForecast);
     for(let i=HIST_N+1;i<YRS.length;i++) _excelSetValue(ws,3,EXCEL_DATA_START_COL+1+i,'',null,EXCEL_STYLE.headerForecast);
   }
-  ['ID','Unit'].forEach((h,i)=>_excelSetValue(ws,4,7+i,h,null,EXCEL_STYLE.header));
+  _excelSetValue(ws,4,EXCEL_LABEL_COL,'계정',null,EXCEL_STYLE.header);
+  _excelSetValue(ws,4,EXCEL_ID_COL,'ID',null,EXCEL_STYLE.header);
+  _excelSetValue(ws,4,EXCEL_UNIT_COL,'Unit',null,EXCEL_STYLE.header);
   YRS.forEach((y,i)=>_excelSetValue(ws,4,EXCEL_DATA_START_COL+1+i,y,null,_isFc(i)?EXCEL_STYLE.headerForecast:EXCEL_STYLE.header));
 }
 
@@ -2650,11 +2749,13 @@ function _excelWriteNodeSheet(wb,name,nodeIds,levels,modelRowMap,inputRowMap,aud
   nodeIds.forEach(k=>{
     let d=D[k]; if(!d) return;
     let row=localRowMap[k];
-    let labelCol=Math.min(2+(levels[k]||0),6);
     let isSection=d.type==='computed'&&((levels[k]||0)<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
-    _excelSetValue(ws,row,labelCol,d.label||k,null,isSection?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
-    _excelSetValue(ws,row,7,k,null,EXCEL_STYLE.id);
-    _excelSetValue(ws,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    // 라벨은 항상 넓은 EXCEL_LABEL_COL(F)에 쓰고, 계층은 Excel 들여쓰기로 표현한다.
+    // 좁은 B~E열에 흩어 쓰면 옆 칸이 비어 있지 않은 한 글자가 잘린다.
+    _excelSetValue(ws,row,EXCEL_LABEL_COL,d.label||k,null,
+      _excelIndentStyle(isSection?EXCEL_STYLE.labelBold:EXCEL_STYLE.label,levels[k]||0));
+    _excelSetValue(ws,row,EXCEL_ID_COL,k,null,EXCEL_STYLE.id);
+    _excelSetValue(ws,row,EXCEL_UNIT_COL,d.u||'',null,EXCEL_STYLE.unit);
     if(d.type==='input'){
       let arow=inputRowMap[k];
       for(let i=0;i<YRS.length;i++){
@@ -2876,13 +2977,15 @@ async function exportToExcel(){
 
   let wsControl=_excelMakeSheet();
   _excelWriteHeaders(wsControl,'Control');
-  _excelSetValue(wsControl,4,2,'Output',null,EXCEL_STYLE.header);
-  _excelSetValue(wsControl,4,3,'ID',null,EXCEL_STYLE.header);
+  // 열 구성은 _excelWriteHeaders가 이미 잡았다 (F 계정 · G ID · H 단위 · I~ 연도).
+  // 예전엔 여기서 B4/C4에 'Output'/'ID'를 또 써서 헤더가 두 벌로 겹쳤다.
   let controlNodes=_excelImportantOutputs(order);
   controlNodes.forEach((k,i)=>{
     let d=D[k], row=EXCEL_DATA_START_ROW+1+i;
-    _excelSetValue(wsControl,row,2,d.label||k,null,k==='root'?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
-    _excelSetValue(wsControl,row,3,k,null,EXCEL_STYLE.id);
+    _excelSetValue(wsControl,row,EXCEL_LABEL_COL,d.label||k,null,
+      k==='root'?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
+    _excelSetValue(wsControl,row,EXCEL_ID_COL,k,null,EXCEL_STYLE.id);
+    _excelSetValue(wsControl,row,EXCEL_UNIT_COL,d.u||'',null,EXCEL_STYLE.unit);
     for(let y=0;y<YRS.length;y++){
       let source=_excelSheetRef('Model')+'!'+_colLetter(EXCEL_DATA_START_COL+y)+modelRowMap[k];
       _excelSetFormula(wsControl,row,EXCEL_DATA_START_COL+1+y,source,(d.v&&d.v[y]!=null)?d.v[y]:0,d,EXCEL_STYLE.link);
@@ -2909,10 +3012,10 @@ async function exportToExcel(){
   _excelWriteHeaders(wsAssump,'Assumptions');
   inputOrder.forEach(k=>{
     let d=D[k], row=inputRowMap[k];
-    let labelCol=Math.min(2+(levels[k]||0),6);
-    _excelSetValue(wsAssump,row,labelCol,d.label||k,null,EXCEL_STYLE.label);
-    _excelSetValue(wsAssump,row,7,k,null,EXCEL_STYLE.id);
-    _excelSetValue(wsAssump,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    _excelSetValue(wsAssump,row,EXCEL_LABEL_COL,d.label||k,null,
+      _excelIndentStyle(EXCEL_STYLE.label,levels[k]||0));
+    _excelSetValue(wsAssump,row,EXCEL_ID_COL,k,null,EXCEL_STYLE.id);
+    _excelSetValue(wsAssump,row,EXCEL_UNIT_COL,d.u||'',null,EXCEL_STYLE.unit);
     for(let i=0;i<YRS.length;i++) _excelSetValue(wsAssump,row,EXCEL_DATA_START_COL+1+i,(d.v&&d.v[i]!=null)?d.v[i]:0,d,EXCEL_STYLE.input);
   });
   _excelApplyHorizontalBorders(wsAssump,EXCEL_DATA_START_ROW+1,EXCEL_DATA_START_ROW+inputOrder.length,EXCEL_DATA_START_COL+YRS.length);
@@ -2925,11 +3028,11 @@ async function exportToExcel(){
   for(let k of order){
     let d=D[k]; if(!d) continue;
     let row=modelRowMap[k];
-    let labelCol=Math.min(2+(levels[k]||0),6);
     let isSection=d.type==='computed'&&((levels[k]||0)<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
-    _excelSetValue(ws,row,labelCol,d.label||k,null,isSection?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
-    _excelSetValue(ws,row,7,k,null,EXCEL_STYLE.id);
-    _excelSetValue(ws,row,8,d.u||'',null,EXCEL_STYLE.unit);
+    _excelSetValue(ws,row,EXCEL_LABEL_COL,d.label||k,null,
+      _excelIndentStyle(isSection?EXCEL_STYLE.labelBold:EXCEL_STYLE.label,levels[k]||0));
+    _excelSetValue(ws,row,EXCEL_ID_COL,k,null,EXCEL_STYLE.id);
+    _excelSetValue(ws,row,EXCEL_UNIT_COL,d.u||'',null,EXCEL_STYLE.unit);
 
     if(d.type==='input'){
       for(let i=0;i<YRS.length;i++){
@@ -3403,24 +3506,21 @@ function esc(s){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
   });
 }
+// 아래 넷은 시그니처·반환 순서가 예전과 같다. 내부만 GRAPH 조회로 바뀌었다.
+// 배열은 복사해서 준다 — 호출부가 정렬·변형해도 색인이 오염되지 않게.
 function childrenOf(id){
-  var out = [];
-  for(var k in D){ if(D[k] && D[k].parent === id) out.push(k); }
-  return out;
+  var c = GRAPH && GRAPH.children[id];
+  return c ? c.slice() : [];
 }
 function rootId(){
-  for(var k in D){ if(D[k] && D[k].parent == null) return k; }
-  return Object.keys(D)[0];
+  return (GRAPH && GRAPH.root) || Object.keys(D)[0];
 }
 function depthOf(id){
-  var d = 0, cur = id, guard = 0;
-  while(D[cur] && D[cur].parent != null && guard++ < 60){ cur = D[cur].parent; d++; }
-  return d;
+  return (GRAPH && GRAPH.depth[id]) || 0;
 }
 function pathOf(id){
-  var arr = [], cur = id, guard = 0;
-  while(D[cur] && guard++ < 60){ arr.unshift(cur); cur = D[cur].parent; }
-  return arr;
+  var p = GRAPH && GRAPH.path[id];
+  return p ? p.slice() : [];
 }
 // 형제 순서로 결정적 배정 — 같은 차트에 함께 그려지는 노드끼리 항상 구분된다.
 // (D[k].c는 캔버스 엔진 전용. 여기서 쓰지 않는 이유는 형제 간 중복이 잦아서.)
@@ -3459,9 +3559,10 @@ function pctText(x, digits){
 }
 function isHist(t){ return t < HIST_N; }
 function nInputs(){ var c = 0; INPUT_KEYS.forEach(function(){ c++; }); return c; }
-function descTag(desc){
-  var m = /^\s*\[([^\]]+)\]/.exec(desc || '');
-  return m ? m[1] : null;
+// desc 앞머리의 [주관]/[계산·교차참조] 같은 분류 태그는 화면에 노출하지 않는다.
+// 원문(D[k].desc)은 그대로 두고 렌더 직전에만 벗긴다.
+function descBody(desc){
+  return String(desc || '').replace(/^\s*\[[^\]]*\]\s*/, '').trim();
 }
 function typeBadge(id){
   var d = D[id] || {};
@@ -3533,6 +3634,25 @@ function chartSVG(series, opt){
   out += '<line class="ax-line" x1="' + padL + '" y1="' + (padT + plotH).toFixed(2) + '" x2="' + (W - padR) +
          '" y2="' + (padT + plotH).toFixed(2) + '" vector-effect="non-scaling-stroke"/>';
   out += '</svg>';
+  // 막대 위 값 라벨 — SVG는 preserveAspectRatio="none"이라 글자가 왜곡된다.
+  // 따라서 HTML 오버레이로 얹고, viewBox 좌표를 %로 환산해 위치시킨다.
+  // 계열이 여러 개인 그룹형(비누적) 차트는 라벨이 겹치므로 생략한다.
+  var showVals = opt.values !== false && (stacked || series.length === 1);
+  var ovl = '';
+  if(showVals){
+    ovl = '<div style="position:absolute;inset:0;pointer-events:none">';
+    for(t = 0; t < n; t++){
+      var tv = totals[t];
+      if(!tv) continue;
+      var ty = padT + plotH - (tv / maxV) * plotH;          // 막대 상단 y (viewBox 단위)
+      ovl += '<div style="position:absolute;left:' + ((padL + colW * (t + 0.5)) / W * 100).toFixed(3) +
+             '%;top:' + (ty / H * 100).toFixed(3) + '%;transform:translate(-50%,-118%);' +
+             'font-size:8.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;' +
+             'color:' + (isHist(t) ? T.body : T.mut) + '">' + esc(fmtSmart(tv)) + '</div>';
+    }
+    ovl += '</div>';
+  }
+  out = '<div style="position:relative">' + out + ovl + '</div>';
   // 연도 라벨은 HTML로 (SVG 비균등 스케일에서 글자 왜곡 방지)
   var lab = '<div style="display:flex;padding:2px ' + padR + '% 0 ' + padL + '%">';
   for(t = 0; t < n; t++){
@@ -3588,7 +3708,7 @@ function buildSidebar(){
     if(kids.length && open) kids.forEach(function(k){ walk(k, level + 1); });
   }
   walk(rootId(), 0);
-  // 오른쪽 숫자가 어느 해 값인지 캡션에 명시한다 (탑바 '표시 연도'와 연동)
+  // 오른쪽 숫자가 어느 해 값인지 캡션에 명시한다 (모델 최종 연도 기준)
   html += '<div class="nav-group"><div class="nav-caption">계정 트리<span class="cap-count">' +
     esc(YRS[t]) + (isHist(t) ? ' 실적' : ' 추정') + '</span></div>' + rows + '</div>';
 
@@ -3772,7 +3892,6 @@ function nodeTr(id, level, cls){
 // ── 계정 상세 페이지 ──
 function renderAccount(id){
   var d = D[id], t = UI.year, kids = childrenOf(id), isInput = d.type === 'input';
-  var par = d.parent, lastH = Math.max(0, HIST_N - 1), lastF = YRS.length - 1;
   var h = '<div class="page">';
 
   // head
@@ -3784,7 +3903,6 @@ function renderAccount(id){
     (d.sub ? '<p class="page-desc">' + esc(d.sub) + '</p>' : '') +
     '<div class="badge-row">' + typeBadge(id) +
     '<span class="badge unit">' + esc(d.u || '-') + '</span>' +
-    (descTag(d.desc) ? '<span class="badge hist">' + esc(descTag(d.desc)) + '</span>' : '') +
     (d.formula ? '<span class="formula-chip">' + esc(d.formula) + '</span>' : '') +
     (d._error ? '<span class="badge err">수식 오류</span>' : '') +
     '<button class="tb-btn" data-canvas="' + esc(id) + '" style="margin-left:4px">' +
@@ -3796,27 +3914,7 @@ function renderAccount(id){
       '</span><div><strong>수식 평가 실패</strong> — ' + esc(d._error) + '</div></div>';
   }
 
-  // KPI — 비중은 상위가 '자식의 합'일 때만 의미가 있다
-  var share = null, shareNA = false;
-  if(par && D[par]){
-    if(isSumOfChildren(par) && val(par, t) !== 0) share = val(id, t) / val(par, t);
-    else shareNA = true;
-  }
-  var g = cagr(id, lastH, lastF);
-  var yoy = (t > 0 && val(id, t - 1) !== 0) ? (val(id, t) / val(id, t - 1) - 1) : null;
-  h += '<div class="grid kpi">';
-  h += kpi(YRS[t] + ' 값', fmtV(id, t), d.u,
-    yoy == null ? '전년 대비 —' : ('전년 대비 <span class="' + (yoy >= 0 ? 'pos' : 'neg') + '">' + pctText(yoy) + '</span>'));
-  h += kpi('최종 실적 ' + (YRS[lastH] || '-'), fmtV(id, lastH), d.u, '실적 ' + HIST_N + '개년');
-  h += kpi('최종 추정 ' + YRS[lastF], fmtV(id, lastF), d.u,
-    g == null ? '추정 CAGR —' : ('추정 CAGR <span class="' + (g >= 0 ? 'pos' : 'neg') + '">' + pctText(g) + '</span>'));
-  h += kpi(par ? (D[par].label || par) + ' 대비 비중' : '모델 루트',
-    share == null ? '—' : (share * 100).toFixed(1) + '%', '',
-    !par ? '트리 최상위'
-      : (shareNA
-          ? '<span class="mono">' + esc(D[par].formula || '-') + '</span>'
-          : '<button class="rowlink" data-go="' + esc(par) + '">상위 계정 열기</button>'));
-  h += '</div>';
+  // KPI 카드 행은 두지 않는다 — 같은 숫자를 아래 추이 차트가 막대 위 값 라벨로 직접 보여준다.
 
   // 차트 + 근거
   var series;
@@ -3831,9 +3929,9 @@ function renderAccount(id){
     (stacked ? '누적 · ' : '') + '회색 = 실적',
     d.u || '',
     (kids.length > 1 ? legendHTML(series) : '') + chartSVG(series, { stacked:stacked, height:34 }));
-  h += card('추정 근거', descTag(d.desc) ? '태그: ' + descTag(d.desc) : '', '',
+  h += card('추정 근거', '', '',
     '<div class="callout-list"><div class="callout"><b>' + esc(d.label || id) + '</b><p>' +
-    esc(d.desc || 'desc 없음') +
+    esc(descBody(d.desc) || 'desc 없음') +
     '</p></div>' +
     (d.formula ? '<div class="callout"><b>계산식</b><p class="mono">' + esc(d.formula) + '</p></div>' : '') +
     (kids.length ? '<div class="callout"><b>하위 요소 ' + kids.length + '개</b><p>' +
@@ -3889,9 +3987,26 @@ function renderAccount(id){
       '<div class="table-wrap"><table class="fm">' + yearTh('항목') + nodeTr(id, 0, 'total') + '</table></div>');
   }
 
-  // 이 계정에 영향을 주는 가정변수 (하위 input 전체)
-  var drivers = [];
-  (function collect(x){ childrenOf(x).forEach(function(k){ if(D[k].type === 'input') drivers.push(k); collect(k); }); })(id);
+  // 이 계정을 움직이는 가정변수 — 트리 하위가 아니라 수식 의존성 기준이다.
+  // 서브트리 밖에 있는 드라이버(PREV, 공유 드라이버)도 여기서 잡힌다.
+  var drivers = driversOf(id);
+
+  // 하류 영향도 — 이 노드를 바꾸면 무엇이 흔들리는가
+  var affects = descendantsOf(id);
+  if(affects.length){
+    var af = '';
+    affects.sort(function(a, b){ return depthOf(a) - depthOf(b); }).forEach(function(k){
+      af += '<tr><td><span class="cellrow">' +
+        (D[k].type === 'input' ? '<i class="mark-input"></i>' : '') +
+        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</button></span></td>' +
+        '<td style="text-align:left;color:' + T.sec + '">' + esc(D[k].u || '') + '</td>' +
+        '<td>' + esc(fmtV(k, t)) + '</td>' +
+        '<td style="text-align:left"><span class="mono">' + esc(D[k].formula || '') + '</span></td></tr>';
+    });
+    h += card('영향받는 계정 ' + affects.length + '개', '이 값을 바꾸면 다시 계산되는 노드', YRS[t] + ' 기준',
+      '<div class="table-wrap"><table class="fm"><tr><th>계정</th><th style="text-align:left">단위</th>' +
+      '<th>' + esc(YRS[t]) + '</th><th style="text-align:left">계산식</th></tr>' + af + '</table></div>');
+  }
   if(drivers.length){
     var dr = '';
     drivers.forEach(function(k){
@@ -3900,7 +4015,7 @@ function renderAccount(id){
         '<td style="text-align:left;color:' + T.sec + '">' + esc(D[k].u || '') + '</td>' +
         '<td>' + esc(fmtV(k, t)) + '</td>' +
         '<td style="text-align:left;font-size:9.5px;color:' + T.body + ';white-space:normal;max-width:420px">' +
-        esc((D[k].desc || '').slice(0, 120)) + '</td></tr>';
+        esc(descBody(D[k].desc).slice(0, 120)) + '</td></tr>';
     });
     h += card('연결된 가정변수 ' + drivers.length + '개', '', YRS[t] + ' 기준',
       '<div class="table-wrap"><table class="fm"><tr><th>가정변수</th><th style="text-align:left">단위</th>' +
@@ -3925,13 +4040,10 @@ function isSumOfChildren(id){
 // ── 요약 대시보드 ──
 function renderSummary(){
   var r = rootId(), t = UI.year, kids = childrenOf(r);
-  var lastH = Math.max(0, HIST_N - 1), lastF = YRS.length - 1;
-  var g = cagr(r, lastH, lastF);
-  var issues = runChecks().filter(function(c){ return c.status !== 'ok'; });
   var h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('home', 16) + ' Overview</div>' +
     '<h1>' + esc(D[r].label || r) + '</h1>' +
-    '<p class="page-desc">' + esc(D[r].desc || '') + '</p>' +
+    '<p class="page-desc">' + esc(descBody(D[r].desc)) + '</p>' +
     '<div class="badge-row"><span class="badge hist">실적 ' + HIST_N + '개년</span>' +
     '<span class="badge calc">추정 ' + (YRS.length - HIST_N) + '개년</span>' +
     '<span class="badge input">가정변수 ' + nInputs() + '개</span>' +
@@ -3939,14 +4051,8 @@ function renderSummary(){
     '<button class="tb-btn" data-canvas="' + esc(r) + '" style="margin-left:4px">' +
       ic('git-branch', 16) + ' 전체 캔버스</button></div></div>';
 
-  h += '<div class="grid kpi">';
-  h += kpi('최종 실적 ' + (YRS[lastH] || '-'), fmtV(r, lastH), D[r].u, '실적 ' + HIST_N + '개년');
-  h += kpi(YRS[t] + ' (표시 연도)', fmtV(r, t), D[r].u, isHist(t) ? '실적(확정)' : '추정');
-  h += kpi('최종 추정 ' + YRS[lastF], fmtV(r, lastF), D[r].u,
-    g == null ? 'CAGR —' : ('CAGR <span class="' + (g >= 0 ? 'pos' : 'neg') + '">' + pctText(g) + '</span>'));
-  h += kpi('검증 이슈', String(issues.length), '건',
-    issues.length ? '<button class="rowlink" data-go="checks">검증·이슈 열기</button>' : '<span class="pos">전부 통과</span>');
-  h += '</div>';
+  // KPI 카드 행은 제거했다 — 같은 숫자를 아래 차트가 막대 위 값 라벨로 직접 보여준다.
+  // 검증 이슈 건수는 사이드바 `검증·이슈` 항목에 그대로 표시된다.
 
   var series = kids.map(function(k){ return { label:D[k].label || k, color:nodeColor(k), values:D[k].v || [] }; });
   h += '<div class="grid two">';
@@ -3984,7 +4090,7 @@ function renderSummary(){
 function renderAssumPage(){
   var t = UI.year, h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('sliders', 16) + ' Model control</div>' +
-    '<h1>가정·근거</h1><p class="page-desc">입력 노드 ' + nInputs() + '개와 desc 태그.</p></div>';
+    '<h1>가정·근거</h1></div>';
 
   // 부모별 그룹
   var byParent = {};
@@ -3996,21 +4102,6 @@ function renderAssumPage(){
   (function walk(id){ if(byParent[id]) order.push(id); childrenOf(id).forEach(walk); })(rootId());
   if(byParent['_']) order.push('_');
 
-  var counts = { 객관:0, 주관:0, 외생:0, 기타:0 };
-  INPUT_KEYS.forEach(function(k){
-    var tag = descTag(D[k].desc) || '';
-    if(/객관/.test(tag) && !/주관/.test(tag)) counts['객관']++;
-    else if(/주관/.test(tag)) counts['주관']++;
-    else if(/외생/.test(tag)) counts['외생']++;
-    else counts['기타']++;
-  });
-  h += '<div class="grid kpi">' +
-    kpi('[객관]', String(counts['객관']), '개') +
-    kpi('[주관]', String(counts['주관']), '개') +
-    kpi('[외생]', String(counts['외생']), '개') +
-    kpi('태그 없음', String(counts['기타']), '개') +
-    '</div>';
-
   order.forEach(function(pid){
     var p = D[pid] || { label:'기타' };
     var rows = '';
@@ -4020,14 +4111,13 @@ function renderAssumPage(){
       rows += '<tr class="drv"><td><span class="cellrow"><i class="mark-input"></i>' +
         '<button class="rowlink" data-go="' + esc(k) + '">' + esc(d.label || k) + '</button>' +
         (changed ? '<span class="badge input">변경됨</span>' : '') + '</span></td>' +
-        '<td style="text-align:left;color:' + T.sec + '">' + esc(d.u || '') + '</td>' +
-        '<td style="text-align:left"><span class="badge hist">' + esc(descTag(d.desc) || '미태그') + '</span></td>';
+        '<td style="text-align:left;color:' + T.sec + '">' + esc(d.u || '') + '</td>';
       for(var tt = 0; tt < YRS.length; tt++){
         rows += '<td class="' + (isHist(tt) ? 'hist' : '') + '">' + esc(fmtV(k, tt)) + '</td>';
       }
       rows += '<td><button class="rowlink" data-desc="' + esc(k) + '">근거</button></td></tr>';
     });
-    var head = '<tr><th>가정변수</th><th style="text-align:left">단위</th><th style="text-align:left">태그</th>';
+    var head = '<tr><th>가정변수</th><th style="text-align:left">단위</th>';
     for(var t2 = 0; t2 < YRS.length; t2++){
       head += '<th class="' + (isHist(t2) ? 'hist' : '') + '">' + esc(YRS[t2]) + '</th>';
     }
@@ -4083,11 +4173,13 @@ function runChecks(){
   });
   out.push({ name:'실적 구간 음수', status:negs.length ? 'warn' : 'ok',
     detail:negs.length ? negs.join(', ') : '실적 구간에 음수 없음', keys:[] });
-  // 4) desc 태그 누락
-  var untag = Object.keys(D).filter(function(k){ return !descTag(D[k].desc); });
-  out.push({ name:'근거 태그', status:untag.length ? 'warn' : 'ok',
-    detail:untag.length ? untag.length + '개 노드에 [객관]/[주관]/[외생]/[계산] 태그 없음' : '전체 노드 태그 완료',
-    keys:untag });
+  // 4) 어떤 수식도 참조하지 않는 가정변수 (그래프 dependents가 비어 있음)
+  var orphanIn = unusedInputs();
+  out.push({ name:'미사용 가정변수', status:orphanIn.length ? 'warn' : 'ok',
+    detail:orphanIn.length
+      ? orphanIn.map(function(k){ return D[k].label || k; }).join(', ') + ' — 어떤 계산에도 쓰이지 않음'
+      : '모든 가정변수가 계산에 반영됨',
+    keys:orphanIn });
   // 5) 시뮬레이션 변경분
   var changed = [];
   for(var k2 in DEFAULTS_S){
@@ -4143,15 +4235,6 @@ function renderCanvasLegend(){
 
 // ─── 초기화 ─────────────────────────────────────────────────
 function initShell(){
-  var sel = document.getElementById('yrSel');
-  sel.innerHTML = YRS.map(function(y, i){
-    return '<option value="' + i + '"' + (i === UI.year ? ' selected' : '') + '>' + esc(y) + (isHist(i) ? ' (실적)' : '') + '</option>';
-  }).join('');
-  sel.addEventListener('change', function(){
-    UI.year = +this.value;
-    buildSidebar();
-    if(UI.view !== 'canvas'){ document.getElementById('docView').innerHTML = renderView(UI.view); bindDoc(); }
-  });
   document.getElementById('btnPL').onclick = function(){ go('pl'); };
   document.getElementById('simBtn').onclick = function(){ toggleSim(); };
   document.getElementById('btnXlsx').onclick = function(){ exportToExcel(); };

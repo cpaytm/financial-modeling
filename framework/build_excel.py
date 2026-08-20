@@ -354,8 +354,9 @@ FMT_NUM = '#,##0;(#,##0);"-"'
 FMT_YEAR = 'General'
 
 DATA_START_COL = 9  # I
-LABEL_START_COL = 2  # B
-MAX_LABEL_LEVELS = 5  # B:F
+LABEL_START_COL = 2  # B — 테두리/음영을 그리는 시작 열
+LABEL_COL = 6  # F — 계정명은 항상 여기. 계층은 alignment.indent로 표현한다.
+MAX_LABEL_LEVELS = 8  # indent 최대 단계
 ID_COL = 7  # G
 UNIT_COL = 8  # H
 HEADER_ROW = 4
@@ -511,6 +512,11 @@ def _write_year_headers(ws, YRS: list[str], hist_n: int = 1) -> None:
             c.fill = FILL_FORECAST
             c.alignment = ALIGN_CENTER_ACROSS
             c.border = BORDER_HEADER
+    c = ws.cell(row=HEADER_ROW, column=LABEL_COL, value="계정")
+    c.font = FONT_HEADER
+    c.fill = FILL_HEADER
+    c.alignment = ALIGN_LEFT
+    c.border = BORDER_HEADER
     for i, y in enumerate(YRS):
         c = ws.cell(row=HEADER_ROW, column=DATA_START_COL + i, value=y)
         c.font = FONT_HEADER
@@ -522,19 +528,27 @@ def _write_year_headers(ws, YRS: list[str], hist_n: int = 1) -> None:
 
 def _set_model_columns(ws, YRS: list[str]) -> None:
     for col in ("A", "B", "C", "D", "E"):
-        ws.column_dimensions[col].width = 1
-    ws.column_dimensions["F"].width = 32
+        ws.column_dimensions[col].width = 2
+    ws.column_dimensions[get_column_letter(LABEL_COL)].width = 46
     ws.column_dimensions[get_column_letter(ID_COL)].width = 22
-    ws.column_dimensions[get_column_letter(UNIT_COL)].width = 10
+    ws.column_dimensions[get_column_letter(UNIT_COL)].width = 12
     for i in range(len(YRS)):
         ws.column_dimensions[get_column_letter(DATA_START_COL + i)].width = 14
 
 
 def _write_label(ws, row: int, level: int, text: str, bold: bool = False, sub: bool = False) -> None:
-    col = min(LABEL_START_COL + level, LABEL_START_COL + MAX_LABEL_LEVELS - 1)
-    c = ws.cell(row=row, column=col, value=text)
+    """계정명을 LABEL_COL(F) 한 곳에 쓰고 트리 깊이는 Excel 들여쓰기로 표현한다.
+
+    예전에는 깊이에 따라 B~F로 열을 옮겨 적었다. 그 방식은 옆 칸이 비어 있어야만
+    글자가 넘쳐 보이므로, 옆 칸에 무엇이든 들어가는 순간 계정명이 잘린다.
+    template.html의 엑셀 내보내기도 같은 이유로 F열 + indent 방식으로 통일했다.
+    """
+    c = ws.cell(row=row, column=LABEL_COL, value=text)
     c.font = FONT_LABEL_SUB if sub else FONT_LABEL_BOLD if bold else FONT_LABEL
-    c.alignment = ALIGN_LEFT
+    c.alignment = Alignment(
+        horizontal="left", vertical="center",
+        indent=max(0, min(level, MAX_LABEL_LEVELS)),
+    )
 
 
 def _apply_horizontal_row_border(ws, row: int, start_col: int, end_col: int, border: Border = BORDER_ROW) -> None:
@@ -945,14 +959,18 @@ def build_workbook(data: dict, out_path: Path) -> None:
     _write_year_headers(ws_control, YRS, hist_n)
     _set_model_columns(ws_control, YRS)
     control_nodes = _important_outputs(D, display_order)
-    ws_control.cell(row=HEADER_ROW, column=2, value="Output").font = FONT_HEADER
-    ws_control.cell(row=HEADER_ROW, column=2).fill = FILL_HEADER
-    ws_control.cell(row=HEADER_ROW, column=3, value="ID").font = FONT_HEADER
-    ws_control.cell(row=HEADER_ROW, column=3).fill = FILL_HEADER
+    # 열 구성은 _write_year_headers가 이미 잡았다 (F 계정 · G ID · H 단위 · I~ 연도).
+    # 예전엔 여기서 B/C에 'Output'/'ID' 헤더를 또 써서 헤더가 두 벌로 겹쳤고,
+    # 폭 2짜리 B·C에 계정명을 적어 글자가 잘렸다.
+    ws_control.cell(row=HEADER_ROW, column=ID_COL, value="ID").font = FONT_HEADER
+    ws_control.cell(row=HEADER_ROW, column=ID_COL).fill = FILL_HEADER
+    ws_control.cell(row=HEADER_ROW, column=UNIT_COL, value="Unit").font = FONT_HEADER
+    ws_control.cell(row=HEADER_ROW, column=UNIT_COL).fill = FILL_HEADER
     for r, k in enumerate(control_nodes, DATA_START_ROW):
         d = D[k]
-        ws_control.cell(row=r, column=2, value=d.get("label", k)).font = FONT_LABEL_BOLD if k == "root" else FONT_LABEL
-        ws_control.cell(row=r, column=3, value=k).font = FONT_ID
+        _write_label(ws_control, r, 0, d.get("label", k), bold=(k == "root"))
+        ws_control.cell(row=r, column=ID_COL, value=k).font = FONT_ID
+        ws_control.cell(row=r, column=UNIT_COL, value=d.get("u", "")).font = FONT_LABEL
         for i in range(len(YRS)):
             cell = ws_control.cell(row=r, column=DATA_START_COL + i, value=f"={_quote_sheet('Model')}!{get_column_letter(DATA_START_COL+i)}{row_map[k]}")
             cell.font = FONT_LINK
