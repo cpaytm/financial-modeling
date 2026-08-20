@@ -1,5 +1,5 @@
-﻿# HTML Slides
+# 강의 슬라이드
 
-추후 [../lecture_contents.md](../lecture_contents.md)를 기반으로 생성할 HTML 슬라이드 산출물을 보관하는 폴더입니다.
-
-아직 슬라이드는 생성하지 않았습니다.
+- [lecture_slides.html](lecture_slides.html) — 브라우저에서 바로 열림
+- 1280 × 720 고정 캔버스, 인쇄하면 한 장에 한 슬라이드
+- 운영 방식은 [../course_guide.md](../course_guide.md) 참조

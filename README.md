@@ -11,12 +11,11 @@ Claude나 Codex 같은 LLM을 활용해 재무모델을 만드는 강의 교안 
 ```text
 .
 ├── course/
-│   ├── lecture_contents.md        # 강의 콘텐츠 원본. 추후 HTML 슬라이드 변환의 source
 │   ├── course_guide.md            # 강의 운영용 가이드
 │   ├── templates/
 │   │   └── bm_brief.md            # BM 브리프 작성 템플릿
 │   └── slides-html/
-│       └── README.md              # 추후 생성할 HTML 슬라이드 위치
+│       └── lecture_slides.html    # 강의 슬라이드
 ├── framework/
 │   ├── html_framework.md          # HTML 프레임워크 사용법
 │   ├── template.html              # HTML 인터랙티브 트리 프레임워크
@@ -61,15 +60,10 @@ HTML은 최종 산출물이 아니라 Excel 모델을 만들기 전에 구조를
 
 ---
 
-## 강의 콘텐츠
+## 강의 자료
 
-슬라이드 제작의 기준이 되는 강의 콘텐츠 원본:
-
-- [course/lecture_contents.md](course/lecture_contents.md)
-
-운영용 강의안:
-
-- [course/course_guide.md](course/course_guide.md)
+- [course/slides-html/lecture_slides.html](course/slides-html/lecture_slides.html) — 강의 슬라이드
+- [course/course_guide.md](course/course_guide.md) — 운영용 강의안
 
 BM 브리프 템플릿:
 

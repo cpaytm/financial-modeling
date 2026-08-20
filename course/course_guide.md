@@ -182,13 +182,13 @@
 | 블록 | 시간 | 누적 | 내용 | 자료 |
 |---|---|---|---|---|
 | 0. 오프닝 | 0–10분 | 10 | 강의 한 줄 정의, 오늘 만들 것 미리 보기(완성 HTML 1개 시연) | `examples/Tesla/tesla_revenue_model.html` |
-| 1. 개념 (Part 1~2) | 10–45분 | 45 | 기존 방식의 한계 → 작업 순서 전환 → LLM vs 결정론 역할 분리 | 개념 슬라이드 전반부 |
-| 2. 개념 (Part 3~4) | 45–70분 | 70 | 왜 HTML인가 → 9개(실제 3개) 블록 → 검토 질문 | 개념 슬라이드 후반부 |
+| 1. 개념 (슬라이드 01~02) | 10–45분 | 45 | 파일 하나와 MODEL 객체 → 노드 스키마 → 그래프 구조와 공유 드라이버 | 슬라이드 01 구조, 02 그래프 |
+| 2. 개념 (슬라이드 03~04) | 45–70분 | 70 | 작업 흐름과 breakdown 기준 → 자동 검증 → Excel과의 역할 구분 | 슬라이드 03 작업 흐름, 04 Excel 비교 |
 | 휴식 | 70–80분 | 80 | | |
 | 3. 데모 ① Tesla 워크스루 | 80–110분 | 110 | 완성된 대화 전사본을 따라가며 “BM→트리→HTML” 바뀌는 과정 해설 | §13 진행 대본 A |
 | 4. 데모 ② Tesla 라이브 (Automotive) | 110–150분 | 150 | 강사가 LLM과 실시간 대화로 `MODEL` 블록을 채우고 아티팩트에서 트리 확인 | §13 진행 대본 B |
 | 5. 실습 | 150–170분 | 170 | 수강생이 아는 회사로 BM brief 한 장 → LLM에게 매출원 Q×P 분해 요청 | `templates/bm_brief.md` |
-| 6. 마무리 + Q&A | 170–180분 | 180 | Excel 전환 의미, 세 산출물 정합성, 주의점 | 마무리 슬라이드 |
+| 6. 마무리 + Q&A | 170–180분 | 180 | Excel 전환 의미, 산출물 정합성, 주의점 | 슬라이드 04 |
 
 운영 메모:
 - 라이브 데모(블록 4)가 강의의 절정이자 가장 위험한 구간임: 진행 대본 B를 반드시 사전 리허설하고, 실패 시 데모 ①(Tesla 전사본)으로 폴백함
@@ -199,9 +199,9 @@
 
 ## 13. 라이브 데모 진행 대본
 
-- 데모의 목적은 “완성된 모델 자랑”이 아님: 대화 한 턴마다 BM md와 HTML이 같이 바뀌는 장면을 보여주는 것임(§11, 본문 §10.1)
+- 데모의 목적은 “완성된 모델 자랑”이 아님: 대화 한 턴마다 BM md와 HTML이 같이 바뀌는 장면을 보여주는 것임(§11)
 
-> **프레임워크 사실(중요):** 현재 `framework/template.html`은 강사가 직접 채우는 블록이 **`YRS` / `HIST_N` / `MODEL` 3개뿐**임. `TREE` · `INPUT_KEYS` · `DEFAULTS_S` · `SIM_SECS` · `simCalc()`는 `MODEL`에서 **자동 파생됨**([framework/html_framework.md](../framework/html_framework.md)). 강의 콘텐츠 §14의 “9개 블록” 그림은 개념 설명용이고, 실제로 손으로 채우는 것은 **`MODEL` 하나**임. 데모 중 “나머지는 자동으로 채워짐”을 보여주는 게 오히려 강력한 장면임.
+> **프레임워크 사실(중요):** 현재 `framework/template.html`은 강사가 직접 채우는 블록이 **`YRS` / `HIST_N` / `MODEL` 3개뿐**임. `TREE` · `INPUT_KEYS` · `DEFAULTS_S` · `SIM_SECS` · `simCalc()`는 `MODEL`에서 **자동 파생됨**([framework/html_framework.md](../framework/html_framework.md)). 실제로 손으로 채우는 것은 사실상 **`MODEL` 하나**임. 데모 중 “나머지는 자동으로 채워짐”을 보여주는 게 오히려 강력한 장면임.
 
 ### 진행 대본 A: 데모 ①: Tesla 전사본 워크스루 (해설형, 30분)
 
@@ -219,7 +219,6 @@
 ### 진행 대본 B: 데모 ②: Tesla 라이브 빌드 (Automotive, 실시간, 40분)
 
 - 준비물: claude.ai 프로젝트에 `framework/template.html`과 `examples/Tesla/tesla_bm_revenue_methodology.md`를 업로드, LLM 세션, 미리 받아둔 `MODEL` 완성본(폴백)
-- 더 상세한 장면별 대본: [2026-06-15/tesla_practice_story.md](../2026-06-15/tesla_practice_story.md)
 
 진행(각 단계 = 대화 1~2턴 + 화면 확인):
 
@@ -238,7 +237,7 @@
 아래 드라이버 구조로 framework/template.html의 YRS, HIST_N, MODEL 블록만 채워줘.
 - TREE, INPUT_KEYS, DEFAULTS_S, SIM_SECS, simCalc은 MODEL에서 자동 파생되므로 작성하지 마.
 - 엔진·UI 코드는 절대 수정하지 마.
-- 각 노드 desc는 [객관]/[주관]/[외생]/[계산] 태그로 시작해.
+- 각 노드 desc에 이 숫자의 근거를 한 문장으로 적어줘.
 - 매출은 primary.900, 비용은 neutral.700, 영업이익은 semantic.profit 색 토큰을 주석으로 표기해.
 ```
 
@@ -246,4 +245,4 @@
 - [ ] LLM 세션·예시 파일·빈 사본을 강의 전 모두 열어 둠
 - [ ] B4 응답이 깨지면 미리 채워둔 `MODEL` 완성본을 붙여넣어 B5로 넘어감(리허설 때 만들어 둘 것)
 - [ ] 그래도 막히면 진행 대본 A(Tesla 전사본)로 즉시 전환함
-- [ ] 데모 후 “Excel 수정이 생기면 BM md·HTML도 같이 고침”(§10.1)을 한 줄로 마무리함
+- [ ] 데모 후 “Excel 수정이 생기면 BM md와 HTML도 같이 고침”을 한 줄로 마무리함
