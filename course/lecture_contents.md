@@ -183,7 +183,7 @@ BM/모델 구조 언어화 → 필요 시 기존 Excel 분석 → LLM 대화 →
   - Q × P / 퍼널 / 코호트 구조 제안
   - 기존 Excel 시트 구조 요약
   - 누락된 드라이버 질문
-  - HTML `D`, `TREE`, `SIM_SECS` 초안 작성
+  - HTML `MODEL`, `TREE`, `SIM_SECS` 초안 작성
   - 검토자가 확인해야 할 질문 생성
 
 - Deterministic하게 처리해야 하는 일
@@ -478,7 +478,7 @@ Fleet
   - LLM이 읽고 수정하기 쉬움
 
 - LLM이 다룰 수 있는 블록
-  - `D`
+  - `MODEL`
   - `TREE`
   - `INPUT_KEYS`
   - `DEFAULTS_S`
@@ -552,7 +552,7 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
 | 번호 | 블록 | 의미 |
 |---|---|---|
 | 1 | `YRS` | 실적과 추정 연도 |
-| 2 | `D` | 모든 변수와 값의 저장소 |
+| 2 | `MODEL` | 모든 변수와 값의 저장소 |
 | 3 | `INPUT_KEYS` | 사용자가 조정할 가정변수 |
 | 4 | `TREE` | 화면에 보이는 모델 구조 |
 | 5 | P&L Table | 결과 테이블 |
@@ -629,7 +629,7 @@ Fleet가 감가상각과 이자비용에도 연결되도록 TREE와 simCalc를 �
   - 테슬라처럼 공시·리서치로 매출 로직을 신규 설계해 BM/모델 구조를 언어화 가능
   - Claude 또는 Codex에게 매출원/비용/자금조달 구조 분해 요청
   - 사람이 잘못된 분해나 누락 드라이버 지적
-  - LLM에게 `framework/template.html`의 `D`와 `TREE` 업데이트 요청
+  - LLM에게 `framework/template.html`의 `MODEL`와 `TREE` 업데이트 요청
   - HTML을 열어 트리 구조 확인
   - 비용과 공유 드라이버 추가
   - 시뮬레이터 변수 선정

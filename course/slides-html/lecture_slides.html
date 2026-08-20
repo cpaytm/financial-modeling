@@ -1,1830 +1,411 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LLM 시대의 재무모델링 - BM에서 HTML, 그리고 Excel까지</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    @font-face {
-      font-family: "Pretendard Variable";
-      src: url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/woff2/PretendardVariable.woff2") format("woff2");
-      font-weight: 100 900;
-      font-display: swap;
-    }
-
-    :root {
-      --ink: #0a0a0a;
-      --ink-soft: #3f3f3b;
-      --muted: #74736d;
-      --paper: #fafaf7;
-      --paper-warm: #f1f0ea;
-      --line: #d8d5cc;
-      --line-soft: #e8e6df;
-      --highlight: #e8e6df;
-      --stage: #2a2a26;
-      --accent: #8a5a2f;
-      --toolbar-h: 58px;
-      --slide-w: min(calc(100vw - 56px), calc((100vh - 56px) * 16 / 10), 1280px);
-    }
-
-    * { box-sizing: border-box; }
-
-    html,
-    body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      background: var(--stage);
-      color: var(--ink);
-      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      letter-spacing: 0;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    body { overflow: hidden; }
-
-    .edit-toolbar {
-      position: fixed;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      background: rgba(250,250,247,0.92);
-      border: 1px solid rgba(216,213,204,0.9);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.22);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .edit-toolbar button,
-    .edit-toolbar select,
-    .edit-toolbar input[type="color"] {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: var(--paper);
-      color: var(--ink);
-      padding: 7px 10px;
-      font: inherit;
-      cursor: pointer;
-      text-transform: uppercase;
-    }
-
-    .edit-toolbar select {
-      min-width: 76px;
-    }
-
-    .edit-toolbar input[type="color"] {
-      width: 34px;
-      height: 29px;
-      padding: 3px;
-    }
-
-    .edit-toolbar button.active {
-      background: var(--ink);
-      border-color: var(--ink);
-      color: var(--paper);
-    }
-
-    .edit-toolbar button.danger {
-      color: #8a2f2f;
-    }
-
-    body.editing [contenteditable="true"] {
-      outline: 1px dashed rgba(138,90,47,0.55);
-      outline-offset: 4px;
-      cursor: text;
-      resize: both;
-      overflow: auto;
-      min-width: 32px;
-      min-height: 1.35em;
-      max-width: 100%;
-    }
-
-    body.editing [contenteditable="true"]:hover {
-      outline-color: rgba(138,90,47,0.85);
-    }
-
-    body.editing [contenteditable="true"]:focus {
-      outline: 2px solid var(--accent);
-      background: rgba(232,230,223,0.36);
-    }
-
-    body.editing [contenteditable="true"].editing-selected {
-      outline: 2px solid var(--accent);
-      outline-offset: 4px;
-    }
-
-    body.editing [contenteditable="true"].editing-selected::selection {
-      background: rgba(138,90,47,0.18);
-    }
-
-    .deck {
-      width: 100vw;
-      height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: calc(var(--toolbar-h) + 18px) 28px 24px;
-      background:
-        radial-gradient(circle at 20% 10%, rgba(250,250,247,0.08), transparent 30%),
-        var(--stage);
-    }
-
-    .slide {
-      display: none;
-      position: relative;
-      width: var(--slide-w);
-      aspect-ratio: 16 / 10;
-      overflow: hidden;
-      background: var(--paper);
-      padding: 56px 64px;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.34);
-    }
-
-    .slide.active {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .meta {
-      display: grid;
-      grid-template-columns: 190px 1fr 96px;
-      align-items: center;
-      gap: 22px;
-      min-height: 22px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--line);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .meta .section {
-      min-width: 0;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      color: var(--muted);
-      text-transform: none;
-      font-weight: 400;
-      letter-spacing: 0;
-    }
-
-    .meta .num {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .progress {
-      height: 1px;
-      width: 100%;
-      background: var(--line-soft);
-      margin-top: 8px;
-    }
-
-    .progress > span {
-      display: block;
-      width: var(--p, 0%);
-      height: 100%;
-      background: var(--ink);
-    }
-
-    .cover {
-      justify-content: space-between;
-      background:
-        linear-gradient(180deg, var(--paper) 0%, var(--paper-warm) 100%);
-    }
-
-    .cover .meta,
-    .cover .progress {
-      display: none;
-    }
-
-    .cover-top,
-    .cover-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 24px;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 10px;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .cover-mark .dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      margin-right: 9px;
-      background: var(--ink);
-      vertical-align: 1px;
-    }
-
-    .cover-center {
-      margin: auto 0;
-      transform: translateY(8px);
-    }
-
-    .cover-tag {
-      margin-bottom: 24px;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 11px;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .cover-title {
-      margin: 0;
-      max-width: 1040px;
-      font-size: 78px;
-      line-height: 1.05;
-      font-weight: 400;
-      letter-spacing: 0;
-      color: var(--ink);
-    }
-
-    .cover-title .light {
-      font-weight: 300;
-      color: var(--ink-soft);
-    }
-
-    .cover-divider {
-      width: 84px;
-      height: 1px;
-      margin: 34px 0 28px;
-      background: var(--ink);
-    }
-
-    .cover-desc {
-      max-width: 720px;
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.65;
-      font-weight: 300;
-      color: var(--ink-soft);
-    }
-
-    .title-block {
-      margin-top: 36px;
-      padding-bottom: 24px;
-      border-bottom: 1px solid var(--line-soft);
-    }
-
-    h1 {
-      margin: 0;
-      max-width: 1040px;
-      font-size: 42px;
-      line-height: 1.12;
-      font-weight: 500;
-      color: var(--ink);
-    }
-
-    .lead-message {
-      margin: 14px 0 0;
-      max-width: 900px;
-      font-size: 19px;
-      line-height: 1.55;
-      font-weight: 300;
-      color: var(--ink-soft);
-    }
-
-    .content {
-      flex: 1;
-      min-height: 0;
-      margin-top: 30px;
-      display: grid;
-      gap: 18px;
-      align-content: stretch;
-    }
-
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 28px;
-      align-items: stretch;
-    }
-
-    .three-col {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 18px;
-      align-items: stretch;
-    }
-
-    .four-col {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      align-items: stretch;
-    }
-
-    .content.two-col,
-    .content.three-col,
-    .content.four-col {
-      grid-auto-rows: minmax(0, 1fr);
-    }
-
-    .content > .panel,
-    .content > .tree,
-    .content > .code,
-    .content > .table,
-    .content > .agenda,
-    .content > .flow {
-      min-height: 0;
-      height: 100%;
-    }
-
-    .panel {
-      border: 1px solid var(--line);
-      background: var(--paper-warm);
-      padding: 24px;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .panel.white { background: var(--paper); }
-    .panel.accent {
-      background: var(--highlight);
-      border-color: var(--line);
-    }
-    .panel.dark {
-      background: var(--ink);
-      color: var(--paper);
-      border-color: var(--ink);
-    }
-
-    .panel h2,
-    .panel h3 {
-      margin: 0 0 12px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid currentColor;
-      font-size: 18px;
-      line-height: 1.32;
-      font-weight: 500;
-    }
-
-    p {
-      margin: 0;
-      font-size: 15px;
-      line-height: 1.65;
-      color: var(--ink-soft);
-      font-weight: 300;
-    }
-
-    ul {
-      margin: 0;
-      padding-left: 20px;
-    }
-
-    li {
-      margin: 7px 0;
-      font-size: 15px;
-      line-height: 1.55;
-      color: var(--ink-soft);
-      font-weight: 300;
-    }
-
-    .dark li,
-    .dark p { color: rgba(250,250,247,0.84); }
-
-    .compact li {
-      margin: 5px 0;
-      font-size: 13px;
-    }
-
-    .big-list li {
-      margin: 10px 0;
-      font-size: 21px;
-      font-weight: 400;
-    }
-
-    .flow {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 12px;
-      align-items: stretch;
-      align-self: stretch;
-    }
-
-    .flow.three { grid-template-columns: repeat(3, 1fr); }
-    .flow.five { grid-template-columns: repeat(5, 1fr); }
-    .flow.four { grid-template-columns: repeat(4, 1fr); }
-
-    .step {
-      min-height: 128px;
-      border: 1px solid var(--line);
-      background: var(--paper);
-      padding: 16px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      font-size: 14px;
-      line-height: 1.42;
-      font-weight: 400;
-      color: var(--ink);
-    }
-
-    .step.active,
-    .step.dark {
-      background: var(--ink);
-      color: var(--paper);
-      border-color: var(--ink);
-    }
-
-    .step.accent {
-      background: var(--highlight);
-      border-color: var(--line);
-      color: var(--ink);
-    }
-
-    .process-map {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      grid-template-rows: minmax(0, 1fr) auto;
-      gap: 10px;
-      height: 100%;
-      align-items: stretch;
-    }
-
-    .process-card {
-      position: relative;
-      border: 1px solid var(--line);
-      background: var(--paper);
-      padding: 18px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-    }
-
-    .process-card.dark {
-      background: var(--ink);
-      border-color: var(--ink);
-      color: var(--paper);
-    }
-
-    .process-card.accent {
-      background: var(--highlight);
-    }
-
-    .process-card:not(:last-child)::after {
-      content: "";
-      position: absolute;
-      right: -11px;
-      top: 50%;
-      width: 8px;
-      height: 8px;
-      border-top: 1px solid var(--muted);
-      border-right: 1px solid var(--muted);
-      transform: translateY(-50%) rotate(45deg);
-      background: transparent;
-      z-index: 2;
-    }
-
-    .process-num {
-      font-family: "JetBrains Mono", monospace;
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .process-card.dark .process-num,
-    .process-card.dark .process-body {
-      color: rgba(250,250,247,0.68);
-    }
-
-    .process-title {
-      font-size: 17px;
-      line-height: 1.32;
-      font-weight: 500;
-      color: inherit;
-    }
-
-    .process-body {
-      margin: 0;
-      font-size: 12px;
-      line-height: 1.48;
-      color: var(--ink-soft);
-    }
-
-    .process-loop {
-      grid-column: 2 / -1;
-      align-self: end;
-      border-top: 1px dashed var(--muted);
-      padding-top: 10px;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12.5px;
-      background: transparent;
-    }
-
-    .table th {
-      text-align: left;
-      background: transparent;
-      color: var(--muted);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 9.5px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      font-weight: 500;
-      padding: 8px 12px;
-      border: 0;
-      border-bottom: 1px solid var(--ink);
-    }
-
-    .table td {
-      vertical-align: top;
-      padding: 10px 12px;
-      border: 0;
-      border-bottom: 1px solid var(--line-soft);
-      line-height: 1.52;
-      color: var(--ink-soft);
-      font-weight: 300;
-    }
-
-    .tree,
-    .code {
-      border: 1px solid var(--line);
-      background: var(--paper-warm);
-      padding: 20px 24px;
-      white-space: pre-wrap;
-      font-family: "JetBrains Mono", "SFMono-Regular", monospace;
-      font-size: 13px;
-      line-height: 1.8;
-      color: var(--ink);
-    }
-
-    .agenda {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px 28px;
-      align-content: stretch;
-    }
-
-    .agenda-item {
-      display: grid;
-      grid-template-columns: 74px 1fr;
-      gap: 14px;
-      align-items: start;
-      padding: 16px 0;
-      border-top: 1px solid var(--line);
-    }
-
-    .agenda-item strong {
-      color: var(--muted);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 10px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-
-    .agenda-item span {
-      font-size: 20px;
-      line-height: 1.34;
-      font-weight: 400;
-    }
-
-    .part-slide {
-      justify-content: center;
-      padding: 52px 64px;
-      background: var(--ink);
-      color: var(--paper);
-    }
-
-    .part-slide .meta,
-    .part-slide .progress { display: none; }
-
-    .part-label-large {
-      color: rgba(250,250,247,0.54);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 12px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      margin-bottom: 22px;
-    }
-
-    .part-title {
-      max-width: 980px;
-      font-size: 72px;
-      line-height: 1.02;
-      font-weight: 300;
-      letter-spacing: 0;
-    }
-
-    .part-summary {
-      margin-top: 24px;
-      max-width: 900px;
-      color: rgba(250,250,247,0.7);
-      font-size: 21px;
-      line-height: 1.5;
-      font-weight: 300;
-    }
-
-    .part-rule {
-      width: 180px;
-      height: 1px;
-      background: currentColor;
-      margin-top: 34px;
-    }
-
-    .closing {
-      justify-content: center;
-      padding: 60px 72px;
-      background: linear-gradient(135deg, var(--paper) 0%, var(--paper-warm) 100%);
-    }
-
-    .closing .meta,
-    .closing .progress { display: none; }
-
-    .closing h1 {
-      width: 100%;
-      font-size: 70px;
-      line-height: 1.02;
-      max-width: 100%;
-      font-weight: 300;
-    }
-
-    .closing .lead-message {
-      font-size: 23px;
-      max-width: 980px;
-    }
-
-    .footer-note {
-      position: absolute;
-      left: 48px;
-      right: 48px;
-      bottom: 24px;
-      display: flex;
-      justify-content: space-between;
-      gap: 18px;
-      color: var(--muted);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 9.5px;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-    }
-
-    .hint {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 400;
-    }
-
-    @media (max-width: 760px) {
-      :root { --slide-w: calc(100vw - 24px); }
-      .edit-toolbar {
-        left: 12px;
-        right: 12px;
-        transform: none;
-        overflow-x: auto;
-        justify-content: flex-start;
-      }
-      .deck { padding: calc(var(--toolbar-h) + 18px) 12px 12px; }
-      .slide { padding: 28px 30px; }
-      h1 { font-size: 30px; }
-      .lead-message { font-size: 15px; }
-      .part-title,
-      .closing h1 { font-size: 46px; }
-      .meta { grid-template-columns: 1fr auto; }
-      .meta .section { display: none; }
-      .two-col,
-      .three-col,
-      .agenda { grid-template-columns: 1fr; }
-      .flow,
-      .flow.three,
-      .flow.five,
-      .flow.four { grid-template-columns: repeat(2, 1fr); }
-      .content { margin-top: 22px; }
-    }
-
-    @media print {
-      body { background: white; overflow: visible; }
-      .edit-toolbar { display: none; }
-      .deck {
-        display: block;
-        width: auto;
-        height: auto;
-        padding: 0;
-        background: white;
-      }
-      .slide,
-      .slide.active {
-        display: flex;
-        width: 100vw;
-        height: 100vh;
-        aspect-ratio: auto;
-        box-shadow: none;
-        page-break-after: always;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML 기반의 재무모델링</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --fs-1:30px; --fs-2:16px; --fs-3:15px;
+  --ink:#111; --mid:#444; --soft:#777; --line:#c9c9c9; --fill:#f2f2f2;
+  --dark:#1a1a1a; --accent:#1D4ED8; --accent-dark:#12327A;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  background:#dcdcdc;color:var(--ink);-webkit-font-smoothing:antialiased;}
+.deck{display:flex;flex-direction:column;align-items:center;gap:24px;padding:24px 0;}
+.slide{width:1280px;height:720px;background:#fff;position:relative;
+  box-shadow:0 2px 10px rgba(0,0,0,.25);overflow:hidden;display:flex;flex-direction:column;}
+@media print{body{background:#fff;}.deck{gap:0;padding:0;}.slide{box-shadow:none;page-break-after:always;}}
+
+.hd{padding:24px 40px 0 40px;flex:0 0 auto;}
+.bd{flex:1 1 auto;padding:14px 40px 12px 40px;min-height:0;display:flex;flex-direction:column;gap:12px;}
+.bd>*{flex:0 0 auto;}
+.grow{flex:1 1 auto !important;min-height:0;}
+.ft{flex:0 0 auto;height:30px;margin:0 40px;border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--soft);}
+.ft .cr{font-size:12px;color:#9a9a9a;letter-spacing:.02em;}
+.cover .cr{position:absolute;left:64px;bottom:24px;font-size:12px;color:#9a9a9a;letter-spacing:.02em;}
+
+.kicker{font-size:13.5px;font-weight:700;letter-spacing:.14em;color:var(--soft);text-transform:uppercase;margin-bottom:4px;}
+h1{font-size:var(--fs-1);font-weight:800;line-height:1.2;letter-spacing:-0.01em;}
+.lead{margin-top:8px;padding:9px 14px;background:var(--accent-dark);
+  font-size:var(--fs-2);font-weight:700;line-height:1.4;color:#fff;}
+
+.h2{font-size:var(--fs-2);font-weight:800;padding-bottom:6px;border-bottom:2px solid var(--ink);margin-bottom:12px;}
+/* 패널 안에서 두 번째 이후 소제목은 위 블록과 확실히 띄운다 */
+.panel>.h2:not(:first-child){margin-top:20px;}
+.h2.acc{color:var(--accent-dark);border-bottom-color:var(--accent-dark);}
+.h2.acc>span{background:var(--accent-dark);color:#fff;padding:1px 6px;margin-left:4px;font-size:12.5px;}
+
+.panel{border:1px solid var(--line);padding:13px 15px;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+/* 기본은 줄어들지 않게. 남는 높이는 .fill 붙은 블록만 흡수한다 */
+.panel>*{flex:0 0 auto;}
+.panel.tint{background:var(--fill);border-color:#dcdcdc;}
+.cols{display:grid;gap:14px;}
+.c2{grid-template-columns:1fr 1fr;}
+.c2a{grid-template-columns:1.15fr 1fr;}
+.c2b{grid-template-columns:1fr 1.15fr;}
+
+ul{list-style:none;}
+ul.dash>li{padding-left:12px;position:relative;margin-bottom:8px;font-size:14.5px;line-height:1.5;}
+ul.dash>li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:2px;background:var(--ink);}
+ul.dash>li:last-child{margin-bottom:0;}
+ul.dash.sp>li{margin-bottom:11px;}
+/* .grow 패널 안 남는 높이는 항목 사이를 벌리지 말고 항목 자체를 키워서 흡수한다 */
+/* li에 display:flex를 주면 <b> 앞뒤 공백 텍스트 노드가 사라진다. 항목은 그대로 두고
+   목록 전체만 flex 컨테이너로 만들어 남는 높이를 항목 사이로 분배한다 */
+.panel>ul.dash.fill{flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-between;}
+.panel>ul.dash.fill>li{margin-bottom:0;}
+.panel>table.fill{flex:0 0 auto;}
+.panel>.schain.fill{flex:1 1 auto;justify-content:flex-start;}
+.panel>.schain.fill>div{flex:1 1 0;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+.panel>.steps.fill{flex:1 1 auto;justify-content:flex-start;}
+.panel>.steps.fill>.stp{flex:1 1 0;align-items:center;}
+.defn.pin{margin-top:auto;padding-top:13px;}
+/* 마무리 박스 앞 최소 간격 확보 */
+.panel>ul.dash,.panel>table,.panel>.schain,.panel>.steps,.panel>pre.cd{margin-bottom:12px;}
+.panel>*:last-child{margin-bottom:0;}
+p{font-size:var(--fs-3);line-height:1.45;}
+
+table{width:100%;border-collapse:collapse;}
+th{background:var(--dark);color:#fff;font-size:14px;font-weight:700;line-height:1.3;
+  text-align:left;padding:6px 9px;border:1px solid var(--dark);}
+td{font-size:14px;font-weight:400;line-height:1.4;padding:6px 9px;border:1px solid var(--line);}
+td.rowh{font-weight:800;background:var(--fill);white-space:nowrap;}
+table tbody tr:last-child td{border-bottom:1px solid var(--ink);}
+table.tight th,table.tight td{padding:6px 9px;}
+table.sml th,table.sml td{padding:6px 9px;font-size:13px;line-height:1.4;}
+table.cmp th:last-child{background:var(--accent-dark);}
+table.cmp td:last-child{background:#e8effb;font-weight:700;color:var(--accent-dark);}
+.num{font-variant-numeric:tabular-nums;}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;background:var(--fill);padding:0 4px;}
+pre.cd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.45;
+  background:#fff;border:1px solid var(--line);padding:10px 12px;white-space:pre;overflow:hidden;margin-top:12px;}
+pre.cd b{font-weight:800;color:var(--accent-dark);}
+pre.cd i{font-style:normal;color:var(--soft);}
+
+.kbox{margin-top:auto;background:var(--accent-dark);color:#fff;font-weight:800;font-size:14px;
+  line-height:1.45;padding:10px 12px;}
+.kbox.k2{margin-top:0;background:var(--dark);}
+.kbox.st{margin-top:14px;}
+
+.chain{display:flex;align-items:stretch;gap:7px;}
+.chain .node{flex:1;background:var(--fill);
+  clip-path:polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%);
+  padding:10px 28px 10px 14px;display:flex;flex-direction:column;justify-content:center;}
+.chain .node .t{font-size:14.5px;font-weight:800;line-height:1.2;}
+.chain .node .s{font-size:12.5px;color:var(--mid);margin-top:2px;line-height:1.3;}
+.chain .node.goal{background:var(--accent-dark);}
+.chain .node.goal .t{color:#fff;}
+.chain .node.goal .s{color:#c5d5f2;}
+
+.schain{display:flex;flex-direction:column;gap:8px;}
+.schain>div{border:1px solid var(--line);padding:9px 12px;}
+.schain>div>b{display:block;font-size:14px;font-weight:800;margin-bottom:2px;}
+.schain>div>span{display:block;font-size:12.5px;color:var(--soft);line-height:1.35;}
+.schain>div.dkn{border-color:var(--accent-dark);background:var(--fill);}
+
+.fml{display:flex;align-items:stretch;gap:8px;}
+.fml .fbx{flex:1;border:1px solid var(--line);padding:9px 11px;display:flex;flex-direction:column;justify-content:center;}
+.fml .fbx.dk{background:var(--accent-dark);border-color:var(--accent-dark);}
+.fml .ft2{font-size:12.5px;font-weight:700;color:var(--soft);}
+.fml .fv2{font-size:15.5px;font-weight:800;margin:2px 0 3px;letter-spacing:-0.01em;}
+.fml .fs2{font-size:11.5px;line-height:1.3;color:var(--soft);}
+.fml .fbx.dk .ft2{color:#b6c8ec;}
+.fml .fbx.dk .fv2{color:#fff;}
+.fml .fbx.dk .fs2{color:#cfdcf3;}
+.fml .fop{display:flex;align-items:center;font-size:24px;font-weight:800;color:var(--line);}
+
+.steps{display:flex;flex-direction:column;gap:11px;}
+.stp{display:flex;align-items:flex-start;gap:9px;}
+.stp .sn{flex:0 0 20px;height:20px;border-radius:50%;background:var(--accent-dark);color:#fff;font-weight:800;
+  font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.stp .sx{font-size:14px;line-height:1.4;}
+.stp .sx b{display:block;font-weight:800;}
+.stp .sx span{color:var(--soft);font-size:12.5px;}
+
+.defn{font-size:12.5px;line-height:1.35;color:var(--soft);margin-top:5px;}
+.sm{font-size:12px;color:var(--soft);}
+
+/* 제목은 수직 중앙보다 살짝 위, 목차 화살표는 바닥 고정 */
+.slide.cover{justify-content:center;padding:0 64px 150px 64px;}
+.cover .cvgrid{display:grid;grid-template-columns:1fr 400px;gap:52px;align-items:center;}
+.cover .cvdia{width:100%;height:auto;}
+.cover .cvdia .bx{fill:#fff;stroke:var(--line);stroke-width:1.5;}
+.cover .cvdia .bx.inp{fill:var(--fill);}
+.cover .cvdia .bx.rt{fill:var(--accent-dark);stroke:var(--accent-dark);}
+.cover .cvdia text{font-family:inherit;font-size:15px;font-weight:800;fill:var(--ink);}
+.cover .cvdia text.k{font-size:12px;font-weight:700;fill:var(--soft);letter-spacing:.08em;}
+.cover .cvdia text.w{fill:#fff;}
+.cover .cvdia text.f{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:400;fill:var(--accent-dark);}
+.cover .cvdia line,.cover .cvdia path{stroke:var(--accent-dark);stroke-width:1.5;fill:none;}
+.cover .tag{font-size:15px;font-weight:700;color:var(--soft);letter-spacing:.2em;margin-bottom:14px;}
+.cover h1{font-size:58px;line-height:1.08;}
+.cover .sub{margin-top:16px;font-size:19px;font-weight:700;color:var(--mid);line-height:1.45;white-space:nowrap;}
+.cover .rule{margin-top:24px;width:140px;height:6px;background:var(--ink);}
+.cover .bot{position:absolute;left:64px;right:64px;bottom:52px;}
+</style>
 </head>
 <body>
-  <div class="edit-toolbar" aria-label="Text editing controls">
-    <button id="editToggle" type="button">Edit Text</button>
-    <select id="fontSizeControl" aria-label="Font size">
-      <option value="">Size</option>
-      <option value="12px">12</option>
-      <option value="14px">14</option>
-      <option value="16px">16</option>
-      <option value="18px">18</option>
-      <option value="22px">22</option>
-      <option value="28px">28</option>
-      <option value="36px">36</option>
-      <option value="48px">48</option>
-      <option value="64px">64</option>
-      <option value="82px">82</option>
-    </select>
-    <input id="fontColorControl" type="color" value="#0a0a0a" aria-label="Text color">
-    <button id="boxReset" type="button">Reset Box</button>
-    <button id="editReset" class="danger" type="button">Reset Text</button>
-    <span id="editStatus">Saved</span>
+<div class="deck">
+
+<!-- 00 표지 -->
+<section class="slide cover">
+  <div class="cvgrid">
+    <div>
+      <div class="tag">LLM 활용</div>
+      <h1>HTML 기반의<br/>재무모델링</h1>
+      <div class="sub">계정과 수식과 근거를 객체 하나에 담고 브라우저에서 바로 돌리는 방식</div>
+      <div class="rule"></div>
+    </div>
+    <svg class="cvdia" viewBox="0 0 420 372" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#12327A" stroke="none"/></marker></defs>
+      <rect class="bx inp" x="2" y="2" width="180" height="52"/>
+      <text class="k" x="16" y="23">가정변수</text><text x="16" y="42">인도량</text>
+      <rect class="bx inp" x="238" y="2" width="180" height="52"/>
+      <text class="k" x="252" y="23">가정변수</text><text x="252" y="42">대당 판매가</text>
+      <path d="M 92 54 L 92 82 L 178 82 L 178 106" marker-end="url(#ah)"/>
+      <path d="M 328 54 L 328 82 L 242 82 L 242 106" marker-end="url(#ah)"/>
+      <text class="f" x="212" y="76" text-anchor="middle">×</text>
+      <rect class="bx" x="120" y="108" width="180" height="52"/>
+      <text class="k" x="134" y="129">계산 노드</text><text x="134" y="148">모델별 매출</text>
+      <line x1="210" y1="160" x2="210" y2="212" marker-end="url(#ah)"/>
+      <rect class="bx" x="120" y="214" width="180" height="52"/>
+      <text class="k" x="134" y="235">계산 노드</text><text x="134" y="254">차량판매</text>
+      <line x1="210" y1="266" x2="210" y2="318" marker-end="url(#ah)"/>
+      <rect class="bx rt" x="120" y="320" width="180" height="52"/>
+      <text class="k w" x="134" y="341" style="fill:#b6c8ec">최상위</text><text class="w" x="134" y="360">총매출</text>
+    </svg>
   </div>
+  <div class="cr">&copy; 2026 Taemin Yang. All rights reserved.</div>
+  <div class="bot">
+    <div class="chain">
+      <div class="node"><div class="t">01 구조</div><div class="s">파일 하나와 객체 하나</div></div>
+      <div class="node"><div class="t">02 그래프</div><div class="s">소속과 계산식</div></div>
+      <div class="node"><div class="t">03 작업 흐름</div><div class="s">대화에서 검증까지</div></div>
+      <div class="node"><div class="t">04 Excel 비교</div><div class="s">역할 구분</div></div>
+    </div>
+  </div>
+</section>
 
-  <main class="deck">
-    <section class="slide cover active" data-part="Course" data-section="Cover">
-      <div class="meta"><span>Course</span><span class="section">Cover</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="cover-top">
-        <div class="cover-mark"><span class="dot"></span>FINANCIAL MODELING WITH LLM</div>
-        <div class="cover-mark">COURSE DECK · 2026.05</div>
+<!-- 01 구조 -->
+<section class="slide">
+  <div class="hd">
+    <div class="kicker">01. 구조</div>
+    <h1>모델 전체가 파일 하나, 데이터는 객체 하나</h1>
+    <div class="lead">브라우저에서 바로 열리는 단일 HTML 파일, 서버도 설치도 필요 없음</div>
+  </div>
+  <div class="bd">
+    <div class="cols c2a grow">
+      <div class="panel">
+        <div class="h2 acc">MODEL <span>모델 데이터 객체</span></div>
+        <ul class="dash">
+          <li><code>template.html</code> 안의 자바스크립트 객체 이름</li>
+          <li><b>모든 계정이 여기 하나에</b></li>
+          <li>계정 하나가 객체의 키 하나</li>
+        </ul>
+<pre class="cd">const <b>MODEL</b> = {
+  <b>sales_3y</b>: {              <i>// 노드 id</i>
+    label:   'Model 3/Y 매출',
+    parent:  'auto_sales',  <i>// 상위 계정</i>
+    type:    'computed',
+    formula: '<b>del_3y * asp_3y</b>', <i>// 다른 노드 id</i>
+    v:       [60205, 71965, …], <i>// 연도별 값</i>
+    desc:    '인도량 × ASP, 2025 실적 62,007',
+  },
+  <b>del_3y</b>: { type:'<b>input</b>', u:'천대', … },
+}</pre>
+        <div class="h2">노드 타입</div>
+        <ul class="dash">
+          <li><code>computed</code> 수식으로 계산되는 노드, 값을 직접 못 바꿈</li>
+          <li><code>input</code> 가정변수, 슬라이더와 입력칸이 자동으로 붙음</li>
+        </ul>
+        <div class="defn pin">수식 문법 <code>+ - * / ( )</code> · <code>SUM MIN MAX AVG</code> · <code>IF</code> · <code>PREV</code> 전년도 참조</div>
       </div>
-      <div class="cover-center">
-        <div class="cover-tag">BM STRUCTURE · HTML FRAMEWORK · EXCEL MODEL</div>
-        <h1 class="cover-title">
-          LLM 시대의<br>
-          <span class="light">재무모델링</span>
-        </h1>
-        <div class="cover-divider"></div>
-        <p class="cover-desc">사업 구조와 숫자 논리를 먼저 정리하고, HTML로 모델 구조를 검토한 뒤, Excel에서 계산 가능한 재무모델로 완성하는 실무형 워크플로.</p>
-      </div>
-      <div class="cover-bottom">
-        <span>BM - HTML - EXCEL</span>
-        <span>01 / 40</span>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Course" data-section="Table of Contents">
-      <div class="meta"><span>Course</span><span class="section">Table of Contents</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>전체 흐름</h1>
-        <p class="lead-message">원본 md의 Part 구조를 그대로 따라가며, 문제 제기에서 실습과 마무리까지 단계적으로 이동함.</p>
-      </div>
-      <div class="content">
-        <div class="agenda">
-          <div class="agenda-item"><strong>Part 1</strong><span>문제 제기</span></div>
-          <div class="agenda-item"><strong>Part 2</strong><span>새로운 모델링 워크플로</span></div>
-          <div class="agenda-item"><strong>Part 3</strong><span>HTML의 역할</span></div>
-          <div class="agenda-item"><strong>Part 4</strong><span>Framework와 검토 기준</span></div>
-          <div class="agenda-item"><strong>Part 5</strong><span>실습 예시</span></div>
-          <div class="agenda-item"><strong>Part 6</strong><span>차별점과 마무리</span></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide part-slide" data-part="Part 1" data-section="문제 제기">
-      <div class="part-label-large">Part 1</div>
-      <div class="part-title">문제 제기</div>
-      <div class="part-summary">기존 재무모델링 방식의 한계를 확인하고, Excel에서 바로 시작할 때 생기는 구조적 문제를 짚음.</div>
-      <div class="part-rule"></div>
-    </section>
-
-    <section class="slide" data-part="Part 1" data-section="1. 강의 제목">
-      <div class="meta"><span>Part 1</span><span class="section">1. 강의 제목</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>강의 제목</h1>
-        <p class="lead-message">LLM 시대의 재무모델링은 Excel 앞단의 사고 구조를 먼저 정리하는 방식으로 출발함.</p>
-      </div>
-      <div class="content">
-        <div class="panel accent">
-          <h2>한 문장</h2>
-          <p>BM을 먼저 쓰고, HTML로 구조화한 뒤, Excel로 완성하기.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 1" data-section="2. 강의의 한 줄 요약">
-      <div class="meta"><span>Part 1</span><span class="section">2. 강의의 한 줄 요약</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>이 수업은 무엇을 바꾸는가</h1>
-        <p class="lead-message">AI가 Excel을 대신 만들어주는 것이 아니라, 사업 구조와 숫자 논리를 먼저 정리하는 방식임.</p>
-      </div>
-      <div class="content">
-        <div class="flow five">
-          <div class="step">사업모델을<br>언어로 정리</div>
-          <div class="step">기존 Excel을<br>필요 시 분석</div>
-          <div class="step accent">LLM과<br>구조 설계</div>
-          <div class="step">HTML로<br>논리 시각화</div>
-          <div class="step dark">Excel로<br>계산 구현</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 1" data-section="3. 기존 재무모델링의 출발점">
-      <div class="meta"><span>Part 1</span><span class="section">3. 기존 재무모델링의 출발점</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>기존 방식의 한계</h1>
-        <p class="lead-message">Excel은 계산과 수식 검토에는 강하지만, 모델의 사업 논리와 드라이버 관계를 보여주는 데는 약함.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>전통적 출발점</h2>
-          <ul>
-            <li>Excel에서 바로 시작</li>
-            <li>과거 실적 입력</li>
-            <li>매출과 비용 수식 작성</li>
-            <li>가정 시트와 결과표 구성</li>
-          </ul>
-        </div>
-        <div class="panel dark">
-          <h2>구조적 문제</h2>
-          <ul>
-            <li>수식은 많아지지만 모델 논리는 잘 보이지 않음</li>
-            <li>셀 참조는 연결되어도 사업모델 구조는 숨음</li>
-            <li>공유 드라이버가 잘 드러나지 않음</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 1" data-section="4. 이 강의가 바꾸려는 순서">
-      <div class="meta"><span>Part 1</span><span class="section">4. 이 강의가 바꾸려는 순서</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>작업 순서를 바꾼다</h1>
-        <p class="lead-message">Excel을 버리는 것이 아니라, Excel에 들어가기 전 모델 구조를 먼저 드러냄</p>
-      </div>
-      <div class="content">
-        <div class="panel white">
-          <h2>기존 순서</h2>
-          <div class="code">Excel 작성 -> 수식 연결 -> 결과 확인 -> 설명 자료 작성</div>
-        </div>
-        <div class="panel accent">
-          <h2>제안하는 순서</h2>
-          <div class="code">BM/모델 구조 언어화 -> 필요 시 기존 Excel 분석 -> LLM 대화 -> HTML 구조화 -> 시뮬레이션 -> Excel 구현</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide part-slide" data-part="Part 2" data-section="새로운 모델링 워크플로">
-      <div class="part-label-large">Part 2</div>
-      <div class="part-title">새로운 모델링 워크플로</div>
-      <div class="part-summary">BM Brief, 기존 Excel 분석, LLM 대화, HTML, Excel의 역할을 분리하고 연결함.</div>
-      <div class="part-rule"></div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="5. 주요 산출물">
-      <div class="meta"><span>Part 2</span><span class="section">5. 주요 산출물</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>세 가지 산출물</h1>
-        <p class="lead-message">BM md, HTML, Excel은 한 파일의 다른 버전이 아니라 서로 검증하는 세 층임.</p>
-      </div>
-      <div class="content">
-        <table class="table">
-          <thead><tr><th>산출물</th><th>역할</th><th>핵심 질문</th></tr></thead>
+      <div class="panel tint">
+        <div class="h2">직접 채우는 것</div>
+        <table class="tight sml">
           <tbody>
-            <tr><td>BM / Model Structure Brief</td><td>사람이 이해한 BM과 기존 Excel 분석을 함께 반영한 말로 된 모델</td><td>무엇을 어떻게 벌고, 무엇이 숫자를 움직이는가?</td></tr>
-            <tr><td>HTML Interactive Tree</td><td>눈으로 보는 모델 구조와 시나리오 검토 화면</td><td>드라이버 연결이 논리적으로 맞는가?</td></tr>
-            <tr><td>Excel Financial Model</td><td>최종 계산, 공유, 수식 검토, 제출용 산출물</td><td>합의된 구조가 deterministic하게 계산되는가?</td></tr>
+            <tr><td class="rowh">YRS</td><td>연도 배열, 실적을 먼저 쓰고 추정을 뒤에</td></tr>
+            <tr><td class="rowh">HIST_N</td><td>확정 실적 연도 수</td></tr>
+            <tr><td class="rowh">MODEL</td><td>계정과 수식과 값과 근거</td></tr>
           </tbody>
         </table>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="6. BM/모델 구조 언어화가 먼저">
-      <div class="meta"><span>Part 2</span><span class="section">6. BM/모델 구조 언어화가 먼저</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>BM 언어화가 먼저다</h1>
-        <p class="lead-message">기존 Excel 모델 분석은 BM 언어화를 대체하는 것이 아니라 보완하는 자료임.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>사람이 직접 파악한 경우</h2>
-          <ul>
-            <li>BM Brief 작성</li>
-            <li>사업모델 설명을 드라이버 구조로 변환</li>
-            <li>가정, 수익원, 비용원, 재무제표 연결 정리</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>기존 Excel 모델이 있는 경우</h2>
-          <ul>
-            <li>시트 구성, 입력값, 수식, 출력표 분석</li>
-            <li>사람이 파악한 BM과 계산 구조 대조</li>
-            <li>HTML 트리로 옮길 핵심 노드와 가정변수 추출</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="7. BM Brief가 필요한 이유">
-      <div class="meta"><span>Part 2</span><span class="section">7. BM Brief가 필요한 이유</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>BM Brief는 통제 장치다</h1>
-        <p class="lead-message">LLM에게 바로 재무모델을 맡기면 그럴듯하지만 평면적인 결과가 나오기 쉬움.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel dark">
-          <h2>없을 때 생기는 문제</h2>
-          <ul>
-            <li>업종 일반론에 가까운 구조 제안</li>
-            <li>핵심 드라이버 누락 가능성</li>
-            <li>사람이 통제하기 어려운 가정 생성</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>답해야 하는 질문</h2>
-          <ul>
-            <li>고객, 판매 단위, 과금 단위는 무엇인가?</li>
-            <li>매출의 Q와 P는 무엇인가?</li>
-            <li>비용은 어떤 드라이버에 따라 움직이는가?</li>
-            <li>어떤 가정이 객관적이고 주관적인가?</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="8. LLM과 Deterministic Model의 역할 분리">
-      <div class="meta"><span>Part 2</span><span class="section">8. LLM과 Deterministic Model의 역할 분리</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>LLM과 계산 모델은 다르다</h1>
-        <p class="lead-message">LLM은 확률적 생성 시스템이고, 재무모델은 같은 입력이면 같은 출력이 나와야 하는 결정론적 계산 시스템임.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>LLM에 맡기기 좋은 일</h2>
-          <ul>
-            <li>BM 설명 구조화</li>
-            <li>매출원과 비용 항목 분해</li>
-            <li>Q x P, 퍼널, 코호트 구조 제안</li>
-            <li>누락된 드라이버 질문</li>
-          </ul>
-        </div>
-        <div class="panel dark">
-          <h2>결정론적으로 닫을 일</h2>
-          <ul>
-            <li>숫자 계산과 기간별 수식 전개</li>
-            <li>회계 항목 연결</li>
-            <li>이자, 세금, 감가상각, 배당 waterfall</li>
-            <li>과거 실적 정합성 검증</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="9. LLM의 역할">
-      <div class="meta"><span>Part 2</span><span class="section">9. LLM의 역할</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>LLM은 정답지가 아니다</h1>
-        <p class="lead-message">LLM은 분석가의 생각을 구조화하는 대화 상대이며, 최종 판단은 사람이 해야 함.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>LLM이 잘하는 일</h2>
-          <ul>
-            <li>BM 설명에서 매출원 분리</li>
-            <li>비용 항목과 매출 드라이버의 연결 질문</li>
-            <li>객관 가정과 주관 가정 분리</li>
-            <li>HTML 트리에 들어갈 노드 구조 제안</li>
-          </ul>
-        </div>
-        <div class="panel accent">
-          <h2>사람이 해야 하는 일</h2>
-          <ul>
-            <li>구조 검토</li>
-            <li>숫자와 단위 확인</li>
-            <li>과거 실적과 정합성 확인</li>
-            <li>매출, 비용, 자산, 부채, 현금흐름이 앞뒤 맞게 연결되는지 확인</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="10. 좋은 LLM 대화의 흐름">
-      <div class="meta"><span>Part 2</span><span class="section">10. 좋은 LLM 대화의 흐름</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>좋은 대화는 반복된다</h1>
-        <p class="lead-message">한 번에 끝내지 않고, BM에서 구조, 검토, 수정, 구현 순서로 진행함.</p>
-      </div>
-      <div class="content">
-        <div class="tree">BM / Model Structure Brief
-  -> 필요 시 기존 Excel 구조 분석
-  -> 매출원 / 비용원 / 자금조달 구조 분해
-  -> Q x P 또는 퍼널 구조화
-  -> 비용 드라이버 연결
-  -> B/S와 현금흐름 연결 질문
-  -> 객관/주관 가정 분리
-  -> HTML 구조 설계
-  -> 시뮬레이터 변수 선정</div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 2" data-section="10.1 대화 중 산출물의 동시 업데이트">
-      <div class="meta"><span>Part 2</span><span class="section">10.1 대화 중 산출물의 동시 업데이트</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>BM md와 HTML은 같이 진화한다</h1>
-        <p class="lead-message">LLM과의 대화는 일회성 프롬프트가 아니며, 대화가 진행될수록 BM 이해도와 모델 구조가 함께 바뀜.</p>
-      </div>
-      <div class="content">
-        <div class="flow four">
-          <div class="step">LLM 대화</div>
-          <div class="step">BM / 모델 구조 md 수정</div>
-          <div class="step accent">HTML Framework 수정</div>
-          <div class="step dark">Excel 구현</div>
-        </div>
-        <div class="panel">
-          <h2>운영 원칙</h2>
-          <ul>
-            <li>BM md는 모델 논리의 기록</li>
-            <li>HTML은 모델 구조의 검토 화면</li>
-            <li>Excel은 계산 결과의 실행 파일</li>
-            <li>세 파일은 위계가 아니라 서로 검증하는 세 층</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide part-slide" data-part="Part 3" data-section="HTML의 역할">
-      <div class="part-label-large">Part 3</div>
-      <div class="part-title">HTML의 역할</div>
-      <div class="part-summary">Markdown과 Excel 사이에서 HTML이 맡는 기능을 재무모델링 관점으로 정의함.</div>
-      <div class="part-rule"></div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="11. HTML은 무엇인가">
-      <div class="meta"><span>Part 3</span><span class="section">11. HTML은 무엇인가</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>HTML은 브라우저에서 열리는 문서 형식임</h1>
-        <p class="lead-message">코딩을 몰라도, 여기서는 HTML을 “웹브라우저가 바로 열 수 있는 문서” 정도로 이해하면 충분함.</p>
-      </div>
-      <div class="content three-col compact">
-        <div class="panel">
-          <h2>문서</h2>
-          <ul>
-            <li>제목, 표, 문단, 버튼을 담을 수 있음</li>
-            <li>하나의 파일로 저장하고 공유 가능함</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>화면</h2>
-          <ul>
-            <li>CSS로 색상, 크기, 배치를 조정함</li>
-            <li>다이어그램과 표를 더 압축해서 보여줌</li>
-          </ul>
-        </div>
-        <div class="panel dark">
-          <h2>도구</h2>
-          <ul>
-            <li>JavaScript로 버튼, 슬라이더, 계산을 넣을 수 있음</li>
-            <li>읽는 문서가 아니라 조작하는 화면이 됨</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="11.1 HTML이 마크다운보다 나은 지점">
-      <div class="meta"><span>Part 3</span><span class="section">11.1 HTML이 마크다운보다 나은 지점</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>공유하고 조작할 결과물은 HTML이 유리함</h1>
-        <p class="lead-message">마크다운은 쓰기 쉽지만 표현이 제한적임. HTML은 화면 구성, 탐색, 공유, 상호작용을 한 파일 안에 담을 수 있음.</p>
-      </div>
-      <div class="content four-col compact">
-        <div class="panel">
-          <h2>정보 밀도</h2>
-          <ul>
-            <li>색상, 표, 그래픽, 이미지 사용 가능</li>
-            <li>같은 정보를 더 적은 지면에 담음</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>가독성</h2>
-          <ul>
-            <li>탭, 접힘 섹션, 링크를 만들 수 있음</li>
-            <li>긴 문서도 구조적으로 탐색함</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>공유</h2>
-          <ul>
-            <li>브라우저에서 바로 열림</li>
-            <li>링크 하나나 파일 하나로 전달 가능함</li>
-          </ul>
-        </div>
-        <div class="panel dark">
-          <h2>상호작용</h2>
-          <ul>
-            <li>슬라이더, 버튼, 드래그를 넣을 수 있음</li>
-            <li>값을 바꾸고 결과를 바로 확인함</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="11.2 왜 HTML인가">
-      <div class="meta"><span>Part 3</span><span class="section">11.2 왜 HTML인가</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>HTML은 중간 작업대다</h1>
-        <p class="lead-message">HTML은 예쁜 보고서가 아니라, Excel에 들어가기 전 모델 구조를 검토하는 인터페이스임.</p>
-      </div>
-      <div class="content">
-        <div class="flow three">
-          <div class="step">Markdown<br>생각의 원본</div>
-          <div class="step active">HTML<br>구조 검토 인터페이스</div>
-          <div class="step">Excel<br>계산 가능한 최종 모델</div>
-        </div>
-        <div class="panel">
-          <h2>HTML에서 확인할 것</h2>
-          <p>드라이버와 가정의 연결, 트리 구조, 시나리오 조작 가능성.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="11.3 LLM이 HTML을 비교적 잘 다루는 이유">
-      <div class="meta"><span>Part 3</span><span class="section">11.3 LLM이 HTML을 비교적 잘 다루는 이유</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>LLM은 HTML을 비교적 정확하게 읽고 고친다</h1>
-        <p class="lead-message">HTML은 구조가 태그와 속성으로 드러남. 그래서 LLM이 “이 표”, “이 버튼”, “이 계산 블록”처럼 특정 부분을 집어 수정하기 쉬움.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>LLM 입장에서 쉬운 점</h2>
-          <ul>
-            <li>문서 구조가 코드 안에 명시됨</li>
-            <li>화면 요소와 계산 로직을 블록 단위로 나눌 수 있음</li>
-            <li>수정 전후 차이를 diff로 확인하기 쉬움</li>
-          </ul>
-        </div>
-        <div class="panel accent">
-          <h2>재무모델링에서의 의미</h2>
-          <ul>
-            <li>BM 설명을 드라이버 트리로 바꾸기 쉬움</li>
-            <li>가정변수와 계산 결과를 같은 화면에 둘 수 있음</li>
-            <li>코워커가 HTML을 보고 Excel 모델을 직접 구현하기 쉬움</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="12. 재무모델링 관점에서 HTML이 유용한 이유">
-      <div class="meta"><span>Part 3</span><span class="section">12. 재무모델링 관점에서 HTML이 유용한 이유</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>Excel에 넣기 전에 구조를 먼저 본다</h1>
-        <p class="lead-message">매출, 비용, 가정, 시나리오가 어떻게 이어지는지 한 화면에서 확인하고 나서 Excel로 옮김.</p>
-      </div>
-      <div class="content three-col compact">
-        <div class="panel"><h2>구조</h2><ul><li>BM을 드라이버 트리로 표현</li><li>매출원을 계층적으로 분해</li></ul></div>
-        <div class="panel"><h2>연결</h2><ul><li>공유 드라이버 확인</li><li>비용과 자본 부담 연결</li></ul></div>
-        <div class="panel"><h2>검토</h2><ul><li>가정변수 표면화</li><li>시나리오 질문에 즉시 반응</li></ul></div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="12.1 BM을 드라이버 트리로 볼 수 있음">
-      <div class="meta"><span>Part 3</span><span class="section">12.1 BM을 드라이버 트리로 볼 수 있음</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>BM을 드라이버 트리로 본다</h1>
-        <p class="lead-message">말로 긴 설명을 늘어놓기보다, 매출원이 어떤 Q와 P로 구성되는지 먼저 보여줌.</p>
-      </div>
-      <div class="content">
-        <div class="tree">매출
-├─ 구독 매출 = 유료 고객 수 x 월 구독료 x 12개월
-├─ 거래 수수료 = 거래 건수 x 평균 거래액 x 수수료율
-├─ 광고 매출 = 노출 수 x CPM / 1,000
-└─ 부가 서비스 = 이용 건수 x 건당 과금액</div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="12.2 매출과 비용의 공유 드라이버가 보임">
-      <div class="meta"><span>Part 3</span><span class="section">12.2 매출과 비용의 공유 드라이버가 보임</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>좋은 모델은 드라이버를 공유한다</h1>
-        <p class="lead-message">매출과 비용이 따로 놀지 않고, 같은 사업 드라이버가 매출, 비용, 자본 부담에 함께 반영되어야 함.</p>
-      </div>
-      <div class="content two-col">
-        <div class="tree">활성 고객 수
-├─ 구독 매출
-├─ 결제 수수료
-├─ 고객지원 인건비
-├─ 서버 비용
-└─ 운전자본</div>
-        <div class="panel accent">
-          <h2>핵심 질문</h2>
-          <ul>
-            <li>활성 고객 수가 늘면 매출만 늘어나는가?</li>
-            <li>비용과 자본 부담도 같이 늘어나는가?</li>
-            <li>Excel의 여러 시트에 흩어진 참조가 한 구조로 설명되는가?</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="12.3 가정변수를 모델의 표면으로 끌어올릴 수 있음">
-      <div class="meta"><span>Part 3</span><span class="section">12.3 가정변수를 모델의 표면으로 끌어올릴 수 있음</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>가정변수를 표면으로 끌어올린다</h1>
-        <p class="lead-message">Excel의 특정 셀에 숨어 있는 핵심 가정을 토론 가능한 변수로 드러냄.</p>
-      </div>
-      <div class="content three-col compact">
-        <div class="panel"><h2>매출 가정</h2><ul><li>트래픽 성장률</li><li>전환율</li><li>ARPU</li><li>수수료율</li></ul></div>
-        <div class="panel"><h2>운영 가정</h2><ul><li>활성 고객 수</li><li>Headcount</li><li>급여 단가</li><li>서버 단가</li></ul></div>
-        <div class="panel"><h2>재무 가정</h2><ul><li>차입금리</li><li>WACC</li><li>Terminal Growth</li><li>민감도 변수</li></ul></div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="12.4 시나리오 질문에 즉시 반응 가능">
-      <div class="meta"><span>Part 3</span><span class="section">12.4 시나리오 질문에 즉시 반응 가능</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>시나리오 질문에 바로 반응한다</h1>
-        <p class="lead-message">HTML은 모델 설명 도구이면서, 간단한 시나리오 시뮬레이터 역할을 함.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>투자심사 질문</h2>
-          <ul>
-            <li>전환율이 1%p 낮으면 어떻게 되는가?</li>
-            <li>고객 획득 속도를 늦추면 현금흐름은 좋아지는가?</li>
-            <li>금리가 높아지면 영업이익은 얼마나 훼손되는가?</li>
-          </ul>
-        </div>
-        <div class="panel dark">
-          <h2>HTML에서의 장점</h2>
-          <ul>
-            <li>슬라이더 조작</li>
-            <li>결과 즉시 확인</li>
-            <li>가정과 결과의 연결을 같은 화면에서 확인</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 3" data-section="12.5 LLM과 협업하기 좋음">
-      <div class="meta"><span>Part 3</span><span class="section">12.5 LLM과 협업하기 좋음</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>HTML은 LLM과 블록 단위로 대화하기 쉽다</h1>
-        <p class="lead-message">여기서 블록은 데이터, 화면 트리, 계산 로직처럼 역할이 분리된 코드 묶음을 뜻함. 특정 블록만 집어서 수정 요청하고 diff로 검토하기 쉬움.</p>
-      </div>
-      <div class="content">
-        <table class="table">
-          <thead><tr><th>블록</th><th>역할</th><th>대화 예시</th></tr></thead>
+        <div class="h2">MODEL를 읽어 화면을 만드는 방식</div>
+        <table class="tight sml fill">
+          <thead><tr><th style="width:150px;">엔진이 읽는 것</th><th>만들어지는 것</th></tr></thead>
           <tbody>
-            <tr><td>D</td><td>모든 변수와 값의 저장소</td><td>과거 실적과 추정값을 분리해줘</td></tr>
-            <tr><td>화면 구조</td><td>화면에 보이는 모델 구조</td><td>활성 고객 수가 매출, 비용, 운전자본에도 연결되게 해줘</td></tr>
-            <tr><td>simCalc()</td><td>시나리오 재계산 엔진</td><td>금리 변화가 이자비용과 Equity Value에 반영되게 해줘</td></tr>
+            <tr><td class="rowh">parent 필드</td><td>계정 트리 사이드바와 전체 캔버스</td></tr>
+            <tr><td class="rowh">formula 파싱</td><td>계산 순서를 정하고 연도별로 계산</td></tr>
+            <tr><td class="rowh">type가 input인 노드</td><td>시뮬레이터 슬라이더와 연도별 입력칸</td></tr>
+            <tr><td class="rowh">계산 결과 v</td><td>계정별 페이지, 추이 차트, 구성요소 분해</td></tr>
+            <tr><td class="rowh">MODEL 전수 검사</td><td>어긋난 곳을 찾아 사이드바에 건수 표시</td></tr>
+            <tr><td class="rowh">노드 순회</td><td>Excel 수식 변환과 JSON 내보내기</td></tr>
           </tbody>
         </table>
+        <div class="kbox">엔진과 UI는 손대지 않고, 회사가 바뀌면 MODEL만 교체</div>
       </div>
-    </section>
+    </div>
+  </div>
+  <div class="ft"><span>HTML 기반의 재무모델링</span><span class="cr">&copy; 2026 Taemin Yang. All rights reserved.</span><div class="pg">01</div></div>
+</section>
 
-    <section class="slide" data-part="Part 3" data-section="12.6 Excel로 넘어가기 전 구조 오류를 줄임">
-      <div class="meta"><span>Part 3</span><span class="section">12.6 Excel로 넘어가기 전 구조 오류를 줄임</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>구조가 틀리면 수식이 맞아도 틀린 모델이다</h1>
-        <p class="lead-message">HTML 단계에서 매출원, Q와 P, 비용 드라이버, B/S 연결, 시나리오 변수를 먼저 확인함.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>HTML 단계에서 확인할 것</h2>
-          <ul>
-            <li>매출원 누락 여부</li>
-            <li>Q와 P 혼재 여부</li>
-            <li>비용과 매출 드라이버 연결 여부</li>
-            <li>B/S와 이자비용 연결 여부</li>
-          </ul>
-        </div>
-        <div class="panel accent">
-          <h2>효과</h2>
-          <p>Excel은 새로 생각하는 공간이 아니라, 합의된 구조를 계산으로 구현하는 공간이 됨.</p>
-        </div>
-      </div>
-    </section>
+<!-- 02 그래프 -->
+<section class="slide">
+  <div class="hd">
+    <div class="kicker">02. 그래프</div>
+    <h1>MODEL 안에 연결이 두 종류</h1>
+    <div class="lead"><code style="background:rgba(255,255,255,.16);color:#fff;">parent</code> 어느 계정에 속하는지 · <code style="background:rgba(255,255,255,.16);color:#fff;">formula</code> 어떤 값으로 계산되는지</div>
+  </div>
+  <div class="bd">
+    <div class="cols c2 grow">
+      <div class="panel">
+        <div class="h2 acc">그래프 <span>노드와 화살표로 이루어진 연결망</span></div>
+<pre class="cd">  <i>가정변수</i>              <i>계산 노드</i>            <i>상위 계정</i>
 
-    <section class="slide" data-part="Part 3" data-section="13. HTML은 재무모델의 설계도">
-      <div class="meta"><span>Part 3</span><span class="section">13. HTML은 재무모델의 설계도</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>HTML은 재무모델의 설계도다</h1>
-        <p class="lead-message">최종 산출물로 오해하지 않고, Excel 전에 모델이 맞는 방향으로 설계되었는지 확인하는 인터페이스로 사용함.</p>
-      </div>
-      <div class="content">
-        <table class="table">
-          <thead><tr><th>역할</th><th>설명</th></tr></thead>
+  <b>del_3y</b>  ─┐
+             ├──▶ <b>sales_3y</b> ──▶ <b>auto_sales</b> ──▶ <b>root</b>
+  <b>asp_3y</b>  ─┘
+             formula: del_3y * asp_3y</pre>
+        <ul class="dash fill">
+          <li>노드 하나가 계정 하나</li>
+          <li>화살표는 참조 방향</li>
+          <li>이 화살표를 다 합친 것이 <b>그래프</b></li>
+          <li>화살표를 거꾸로 따라가면 이 계정을 움직이는 <b>가정변수</b>가 나옴</li>
+        </ul>
+        <div class="h2">두 연결의 차이</div>
+        <table class="tight sml">
           <tbody>
-            <tr><td>설계도</td><td>모델의 구조와 드라이버를 보여줌</td></tr>
-            <tr><td>검토 도구</td><td>가정과 연결 관계를 사람이 확인함</td></tr>
-            <tr><td>시뮬레이터</td><td>핵심 변수를 바꿔 결과를 확인함</td></tr>
+            <tr><td class="rowh">parent</td><td><b>집계 트리</b>, 하위 합이 상위로 올라감</td></tr>
+            <tr><td class="rowh">formula</td><td><b>계산 의존성</b>, 참조하는 노드가 먼저 계산됨</td></tr>
           </tbody>
         </table>
+        <div class="defn pin">둘이 어긋나는 경우는 전년도를 참조하는 스톡 변수, 그리고 매출과 비용이 함께 쓰는 공유 드라이버</div>
       </div>
-    </section>
-
-    <section class="slide part-slide" data-part="Part 4" data-section="Framework와 검토 기준">
-      <div class="part-label-large">Part 4</div>
-      <div class="part-title">Framework와 검토 기준</div>
-      <div class="part-summary">HTML을 Excel 모델링 지시서로 쓰기 위해 어떤 구조를 확인해야 하는지 정리함.</div>
-      <div class="part-rule"></div>
-    </section>
-
-    <section class="slide" data-part="Part 4" data-section="14. HTML은 Excel 모델링 지시서">
-      <div class="meta"><span>Part 4</span><span class="section">14. HTML은 Excel 모델링 지시서</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>HTML은 코워커가 Excel을 만들 때 보는 설계도임</h1>
-        <p class="lead-message">중요한 것은 중간 파일이 아니라, 코워커가 이 구조를 보고 같은 수식과 시트로 Excel 모델을 구현할 수 있는지임.</p>
+      <div class="panel tint">
+        <div class="h2 acc">그래프 구조가 필요한 이유</div>
+        <div class="schain fill">
+          <div><b>계산 순서 자동 결정</b><span>위상정렬로 참조 순서가 자동으로 정해져 시트 순서를 관리할 필요 없음</span></div>
+          <div><b>순환참조 즉시 검출</b><span>같은 해에 서로 참조 시 즉시 검출</span></div>
+          <div><b>영향도 목록</b><span>이 값을 바꾸면 다시 계산되는 계정을 계산식과 함께 표시</span></div>
+          <div><b>드라이버 역추적</b><span>이 계정을 움직이는 가정변수만 골라냄, 트리가 아니라 수식을 따라감</span></div>
+          <div class="dkn"><b>미사용 가정변수 적발</b><span>어떤 수식도 참조하지 않는 입력, 오타이거나 삭제 잔재</span></div>
+        </div>
+        <div class="defn pin">노드 20개면 손으로도 되지만, 비용과 현금흐름까지 붙어 150개가 넘으면 불가능</div>
       </div>
-      <div class="content">
-        <table class="table">
-          <thead><tr><th>구성</th><th>HTML에서 확인할 것</th><th>Excel로 옮길 때</th></tr></thead>
+    </div>
+  </div>
+  <div class="ft"><span>HTML 기반의 재무모델링</span><span class="cr">&copy; 2026 Taemin Yang. All rights reserved.</span><div class="pg">02</div></div>
+</section>
+
+<!-- 03 작업 흐름 -->
+<section class="slide">
+  <div class="hd">
+    <div class="kicker">03. 작업 흐름</div>
+    <h1>대화로 구조를 잡고 화면으로 확인</h1>
+    <div class="lead">한 턴 고칠 때마다 트리와 표와 시뮬레이터가 같이 갱신</div>
+  </div>
+  <div class="bd">
+    <div class="chain">
+      <div class="node"><div class="t">사업 설명</div><div class="s">무엇을 팔고 어떻게 돈을 받는지</div></div>
+      <div class="node"><div class="t">LLM 대화</div><div class="s">매출원을 Q × P로 분해</div></div>
+      <div class="node"><div class="t">MODEL 작성</div><div class="s">정해진 구조를 노드로</div></div>
+      <div class="node"><div class="t">화면 확인</div><div class="s">슬라이더로 흔들어 검증</div></div>
+      <div class="node goal"><div class="t">Excel</div><div class="s">수식이 박힌 xlsx</div></div>
+    </div>
+    <div class="fml">
+      <div class="fbx"><div class="ft2">① 수량 Q</div><div class="fv2">인도량 1,850천대</div><div class="fs2">시장규모 × 점유율 또는 생산능력 × 가동률</div></div>
+      <div class="fop">&times;</div>
+      <div class="fbx"><div class="ft2">② 단가 P</div><div class="fv2">ASP 40천$/대</div><div class="fs2">기준가 − 인센티브 ± 믹스 ± FX</div></div>
+      <div class="fop">=</div>
+      <div class="fbx dk"><div class="ft2">모델별 매출</div><div class="fv2">74,000 백만$</div><div class="fs2">상위 계정으로 합산</div></div>
+    </div>
+    <div class="cols c2 grow">
+      <div class="panel">
+        <div class="h2">계정 breakdown 기준</div>
+        <ul class="dash fill">
+          <li>공시나 계약서로 <b>확인되는 숫자</b>가 나오면 거기서 그만</li>
+          <li>더 쪼개도 <b>근거 출처가 같으면</b> 그만, 정밀해 보일 뿐</li>
+          <li><b>성장률 10퍼센트</b>처럼 따질 수 없는 값에서 멈추면 안 됨</li>
+          <li>수량은 <b>시장규모 × 점유율</b>과 <b>생산능력 × 가동률</b> 중 작은 값</li>
+          <li>둘 중 어느 쪽이 걸리는지가 곧 그 사업의 <b>병목</b></li>
+          <li>실적 구간은 <b>공시값으로 고정</b>, 추정이 침범하면 안 됨</li>
+        </ul>
+      </div>
+      <div class="panel tint">
+        <div class="h2">자동 검증 항목</div>
+        <table class="tight sml">
           <tbody>
-            <tr><td>기간</td><td>실적과 추정 연도가 맞는가?</td><td>컬럼 헤더와 Historical / Forecast 구간으로 구현함</td></tr>
-            <tr><td>가정</td><td>객관 가정과 주관 가정이 구분되는가?</td><td>Assumptions 시트와 입력 셀로 구현함</td></tr>
-            <tr><td>수식 구조</td><td>Q×P, 비용, 운전자본, DCF 연결이 보이는가?</td><td>각 시트의 행 구조와 수식으로 구현함</td></tr>
-            <tr><td>검토 포인트</td><td>누락 드라이버와 중복 계산이 없는가?</td><td>Formula Audit / Checks로 검증함</td></tr>
-            <tr><td>보조 파일</td><td>필요하면 구조를 별도 파일로 저장할 수 있음</td><td>단, 핵심 산출물은 Excel 모델임</td></tr>
+            <tr><td class="rowh">수식 평가</td><td>파싱 또는 평가 실패 노드</td></tr>
+            <tr><td class="rowh">순환참조</td><td>같은 해에 서로를 참조하는 노드</td></tr>
+            <tr><td class="rowh">부모 = 자식 합</td><td>합계형 노드의 자식 합 불일치</td></tr>
+            <tr><td class="rowh">트리 연결</td><td>루트에서 닿지 않는 고아 노드</td></tr>
+            <tr><td class="rowh">실적 구간 음수</td><td>확정 연도에 나온 음수</td></tr>
+            <tr><td class="rowh">미사용 가정변수</td><td>어떤 수식도 참조하지 않는 입력</td></tr>
           </tbody>
         </table>
+        <div class="h2">사람이 볼 것</div>
+        <ul class="dash">
+          <li>빠진 매출원이나 겹치는 매출원이 없는지</li>
+          <li>슬라이더를 끝까지 밀었을 때 <b>말이 되는 방향</b>으로 움직이는지</li>
+        </ul>
+        
       </div>
-    </section>
+    </div>
+  </div>
+  <div class="ft"><span>HTML 기반의 재무모델링</span><span class="cr">&copy; 2026 Taemin Yang. All rights reserved.</span><div class="pg">03</div></div>
+</section>
 
-    <section class="slide" data-part="Part 4" data-section="15. HTML에서 검토할 질문">
-      <div class="meta"><span>Part 4</span><span class="section">15. HTML에서 검토할 질문</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>HTML에서는 모델 구조를 먼저 맞춘다</h1>
-        <p class="lead-message">화면을 예쁘게 만드는 것보다, 이 구조를 그대로 Excel 수식으로 옮길 수 있는지 확인하는 일이 먼저임.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>매출 / 비용</h2>
-          <ul>
-            <li>모든 매출원이 빠짐없이 표현되었는가?</li>
-            <li>각 매출원이 Q x P 또는 퍼널로 설명되는가?</li>
-            <li>비용이 매출 드라이버와 연결되어 있는가?</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>재무제표 / 전환</h2>
-          <ul>
-            <li>B/S, CAPEX, 차입금, 이자비용 연결이 닫혀 있는가?</li>
-            <li>시뮬레이터에서 핵심 가정을 바꿀 수 있는가?</li>
-            <li>이 구조를 그대로 Excel로 옮길 수 있는가?</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide part-slide" data-part="Part 5" data-section="실습 예시">
-      <div class="part-label-large">Part 5</div>
-      <div class="part-title">실습 예시</div>
-      <div class="part-summary">가상의 플랫폼 모델을 통해 BM md와 HTML을 Excel 모델 구현 지시서로 다듬는 흐름을 보여줌.</div>
-      <div class="part-rule"></div>
-    </section>
-
-    <section class="slide" data-part="Part 5" data-section="17. 실습 진행 장면">
-      <div class="meta"><span>Part 5</span><span class="section">17. 실습 진행 장면</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>실습은 산출물이 맞물려 바뀌는 장면을 보여준다</h1>
-        <p class="lead-message">수강자는 LLM과 대화하면서 BM md와 HTML을 Excel 모델링 지시서로 다듬는 과정을 봄.</p>
-      </div>
-      <div class="content">
-        <div class="process-map">
-          <div class="process-card">
-            <div class="process-num">01 · Human</div>
-            <div class="process-title">사업모델을 말로 정리</div>
-            <p class="process-body">매출원, 비용원, 자금조달 구조를 먼저 문장으로 풀어 씀.</p>
-          </div>
-          <div class="process-card">
-            <div class="process-num">02 · LLM</div>
-            <div class="process-title">기존 자료를 구조화</div>
-            <p class="process-body">기존 Excel 또는 BM 설명을 분석해 Q, P, 비용 드라이버를 분해함.</p>
-          </div>
-          <div class="process-card accent">
-            <div class="process-num">03 · Review</div>
-            <div class="process-title">누락 드라이버를 잡음</div>
-            <p class="process-body">사람이 빠진 매출원, 비용 연결, 공유 드라이버를 지적함.</p>
-          </div>
-          <div class="process-card">
-            <div class="process-num">04 · HTML</div>
-            <div class="process-title">HTML 구조 업데이트</div>
-            <p class="process-body">트리, 가정변수, 계산 흐름을 고치고 Excel로 옮길 구조를 확정함.</p>
-          </div>
-          <div class="process-card dark">
-            <div class="process-num">05 · Excel</div>
-            <div class="process-title">Excel 모델로 구현</div>
-            <p class="process-body">코워커가 합의된 구조를 Excel 시트와 수식으로 직접 구현함.</p>
-          </div>
-          <div class="process-loop">Excel 구현 중 구조가 바뀌면 BM md와 HTML도 다시 업데이트함</div>
+<!-- 04 Excel 비교 -->
+<section class="slide">
+  <div class="hd">
+    <div class="kicker">04. Excel 비교</div>
+    <h1>HTML로 설계하고 Excel로 공유</h1>
+    <div class="lead">설계하고 검증하는 쪽은 HTML, 남들과 주고받는 쪽은 Excel</div>
+  </div>
+  <div class="bd">
+    <table class="cmp tight">
+      <thead><tr><th style="width:150px;">LLM이 할 수 있는 일</th><th>Excel</th><th>HTML</th></tr></thead>
+      <tbody>
+        <tr><td class="rowh">파일 읽기</td><td>압축된 바이너리라 변환 도구를 거쳐야 함</td><td>텍스트라 <b>파일만 주면 바로 답변</b></td></tr>
+        <tr><td class="rowh">계정 관계 파악</td><td>셀 참조를 하나씩 따라가며 추측</td><td>parent와 formula에 적혀 있음</td></tr>
+        <tr><td class="rowh">근거 찾기</td><td>셀 메모에 흩어져 있음</td><td>계정마다 근거 문장이 붙어 있음</td></tr>
+        <tr><td class="rowh">가정 찾기</td><td>수식 안 숫자와 구분이 안 됨</td><td>노드로 선언돼 있어 전부 목록화</td></tr>
+        <tr><td class="rowh">바뀐 곳 찾기</td><td>파일 통째로 비교되어 의미 없음</td><td><code>git diff</code>로 바뀐 줄만 확인</td></tr>
+      </tbody>
+    </table>
+    <div class="cols c2 grow">
+      <div class="panel">
+        <div class="h2">권장 순서</div>
+        <div class="steps fill">
+          <div class="stp"><div class="sn">1</div><div class="sx"><b>HTML에서 구조 확정</b><span>고치기 싸고 LLM과 같이 고칠 수 있음</span></div></div>
+          <div class="stp"><div class="sn">2</div><div class="sx"><b>검증 통과 확인</b><span>수식 오류와 합계 불일치가 없을 때만 다음으로</span></div></div>
+          <div class="stp"><div class="sn">3</div><div class="sx"><b>Excel 생성</b><span>HTML에서 정한 구조 그대로, 값이 아니라 수식으로</span></div></div>
+          <div class="stp"><div class="sn">4</div><div class="sx"><b>구조 변경은 HTML에서</b><span>Excel에서 바로 고치면 둘이 어긋남</span></div></div>
         </div>
       </div>
-    </section>
-
-    <section class="slide part-slide" data-part="Part 6" data-section="차별점과 마무리">
-      <div class="part-label-large">Part 6</div>
-      <div class="part-title">차별점과 마무리</div>
-      <div class="part-summary">기존 방식 대비 차별점, 실무 적용 장점과 주의점, Excel의 최종 산출물 역할을 정리함.</div>
-      <div class="part-rule"></div>
-    </section>
-
-    <section class="slide" data-part="Part 6" data-section="19. 기존 방식과의 차별점">
-      <div class="meta"><span>Part 6</span><span class="section">19. 기존 방식과의 차별점</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>시작점과 검토 대상이 바뀐다</h1>
-        <p class="lead-message">LLM + HTML 방식은 Excel 자체보다 모델 논리와 드라이버 구조를 먼저 검토함.</p>
+      <div class="panel tint">
+        <div class="h2">LLM에게 바로 물어볼 수 있는 것</div>
+        <ul class="dash">
+          <li>이 계정이 어떤 수식으로 계산되는지</li>
+          <li>이 가정을 바꾸면 어디가 영향받는지</li>
+        </ul>
+        <div class="h2">Excel로 공유하는 이유</div>
+        <ul class="dash fill">
+          <li>재무 쪽에서 <b>다들 쓰는 도구</b>, 심사와 실사가 Excel로 돌아감</li>
+          <li>민감도 표 · 피벗 · 시나리오 비교 <b>기능이 이미 다 있음</b></li>
+          <li>내보낸 파일에 <b>수식이 그대로</b>, 값만 붙은 게 아니라 이어서 작업 가능</li>
+        </ul>
+        <div class="kbox st">HTML은 설계와 검증, Excel은 공유</div>
       </div>
-      <div class="content">
-        <table class="table">
-          <thead><tr><th>질문</th><th>기존 방식</th><th>LLM + HTML 방식</th></tr></thead>
-          <tbody>
-            <tr><td>시작점</td><td>Excel</td><td>BM/모델 구조 언어화 + 필요 시 기존 Excel 분석</td></tr>
-            <tr><td>사고 단위</td><td>셀과 시트</td><td>드라이버와 구조</td></tr>
-            <tr><td>LLM 역할</td><td>수식 보조</td><td>구조화 대화 상대</td></tr>
-            <tr><td>검토 대상</td><td>계산 결과</td><td>모델 논리</td></tr>
-            <tr><td>오류 발견</td><td>모델 완성 후</td><td>구조화 단계</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </div>
+  </div>
+  <div class="ft"><span>HTML 기반의 재무모델링</span><span class="cr">&copy; 2026 Taemin Yang. All rights reserved.</span><div class="pg">04</div></div>
+</section>
 
-    <section class="slide" data-part="Part 6" data-section="20. 이 방식의 장점">
-      <div class="meta"><span>Part 6</span><span class="section">20. 이 방식의 장점</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>설명 가능성과 검토 가능성이 높아진다</h1>
-        <p class="lead-message">검토자가 셀 참조를 덜 따라가도 모델의 논리와 가정 연결을 이해할 수 있음.</p>
-      </div>
-      <div class="content three-col compact">
-        <div class="panel"><h2>설명</h2><ul><li>모델 논리를 설명하기 쉬움</li><li>투자심사 질문 대응이 빨라짐</li></ul></div>
-        <div class="panel"><h2>검토</h2><ul><li>공유 드라이버가 드러남</li><li>구조적 오류 감소</li></ul></div>
-        <div class="panel"><h2>통제</h2><ul><li>LLM 산출물을 사람이 통제</li><li>핵심 가정을 시뮬레이션으로 확인</li></ul></div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 6" data-section="21. 주의할 점">
-      <div class="meta"><span>Part 6</span><span class="section">21. 주의할 점</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>보기 좋은 HTML이 맞는 모델을 보장하지 않는다</h1>
-        <p class="lead-message">LLM이 만든 숫자와 구조는 모두 검토 대상이며, 최종 계산은 검증 가능한 수식 또는 코드로 닫아야 함.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel dark">
-          <h2>반드시 확인</h2>
-          <ul>
-            <li>단위와 과거 실적 정합성</li>
-            <li>Excel 수식의 참조 방향</li>
-            <li>재무제표 연결 오류와 중복 계산</li>
-            <li>누락된 비용과 낙관적 가정</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>경계 유지</h2>
-          <ul>
-            <li>LLM이 만든 수식/숫자를 그대로 믿지 않음</li>
-            <li>최종 계산은 Excel 수식 또는 검증 가능한 코드로 수행</li>
-            <li>같은 입력이면 같은 출력이 나오는 구조로 모델을 닫음</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 6" data-section="22. Excel의 역할">
-      <div class="meta"><span>Part 6</span><span class="section">22. Excel의 역할</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>Excel은 합의된 모델을 계산으로 닫는 곳이다</h1>
-        <p class="lead-message">BM과 HTML에서 정리한 구조를 실제 수식, 시트, 검토 가능한 파일로 옮기는 마지막 단계임.</p>
-      </div>
-      <div class="content three-col compact">
-        <div class="panel">
-          <h2>계산</h2>
-          <ul>
-            <li>기간별 수식 전개</li>
-            <li>P&L, B/S, 현금흐름 연결</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>검토</h2>
-          <ul>
-            <li>셀 참조와 수식 추적</li>
-            <li>입력값과 결과값 검산</li>
-          </ul>
-        </div>
-        <div class="panel dark">
-          <h2>공유</h2>
-          <ul>
-            <li>투자심사와 내부 리뷰</li>
-            <li>제출 가능한 최종 파일</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide" data-part="Part 6" data-section="23. 수강자가 가져가야 할 것">
-      <div class="meta"><span>Part 6</span><span class="section">23. 수강자가 가져가야 할 것</span><span class="num"></span></div>
-      <div class="progress"><span></span></div>
-      <div class="title-block">
-        <h1>수강자가 가져갈 역량</h1>
-        <p class="lead-message">LLM 시대의 모델링 역량은 Excel 속도가 아니라 구조 설계와 검증 능력임.</p>
-      </div>
-      <div class="content two-col">
-        <div class="panel">
-          <h2>구조화 역량</h2>
-          <ul>
-            <li>BM을 재무모델링 언어로 정리</li>
-            <li>기존 Excel 모델을 LLM으로 구조 분석</li>
-            <li>드라이버 구조를 만들고 검토</li>
-          </ul>
-        </div>
-        <div class="panel accent">
-          <h2>구현 역량</h2>
-          <ul>
-            <li>HTML 트리로 모델 구조 시각화</li>
-            <li>핵심 가정을 시뮬레이터로 검토</li>
-            <li>검토된 구조를 Excel 모델로 구현</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide closing" data-part="Part 6" data-section="24. 마지막 메시지">
-      <h1>좋은 모델은<br>설명할 수 있어야 한다</h1>
-      <p class="lead-message">Excel을 열기 전에 사업 구조를 말로 정리하고, HTML에서 연결 관계를 확인한 뒤, 마지막에 수식으로 닫는다.</p>
-      <div class="part-rule"></div>
-      <div class="footer-note"><span>LLM 시대의 재무모델링</span><span>Updated 20260525_1207</span></div>
-    </section>
-  </main>
-
-  <script>
-    const slides = Array.from(document.querySelectorAll(".slide"));
-    const editToggle = document.getElementById("editToggle");
-    const editReset = document.getElementById("editReset");
-    const editStatus = document.getElementById("editStatus");
-    const fontSizeControl = document.getElementById("fontSizeControl");
-    const fontColorControl = document.getElementById("fontColorControl");
-    const boxReset = document.getElementById("boxReset");
-    const EDIT_KEY = "lecture_slides_text_edits_v1";
-    const EDITABLE_SELECTOR = [
-      "h1",
-      ".lead-message",
-      ".panel h2",
-      ".panel h3",
-      ".panel p",
-      ".panel li",
-      ".step",
-      ".process-num",
-      ".process-title",
-      ".process-body",
-      ".process-loop",
-      ".agenda-item strong",
-      ".agenda-item span",
-      ".tree",
-      ".code",
-      ".part-label-large",
-      ".part-title",
-      ".part-summary",
-      ".footer-note span",
-      "th",
-      "td",
-      ".cover-mark",
-      ".cover-tag",
-      ".cover-title",
-      ".cover-desc",
-      ".cover-bottom span"
-    ].join(",");
-    let current = 0;
-    let editing = false;
-    let saveTimer;
-    let selectedEditable = null;
-    let resizeFrame = null;
-    let suppressResizePersist = false;
-
-    const editables = slides.flatMap((slide, slideIndex) =>
-      Array.from(slide.querySelectorAll(EDITABLE_SELECTOR))
-        .filter((el) => !el.closest(".meta"))
-        .map((el, index) => {
-          el.dataset.editId = `s${slideIndex}_e${index}`;
-          el.dataset.originalHtml = el.innerHTML;
-          el.dataset.originalStyle = el.getAttribute("style") || "";
-          return el;
-        })
-    );
-
-    function readEdits() {
-      try {
-        return JSON.parse(localStorage.getItem(EDIT_KEY) || "{}");
-      } catch {
-        return {};
-      }
-    }
-
-    function writeEdits() {
-      const payload = {};
-      editables.forEach((el) => {
-        const style = el.getAttribute("style") || "";
-        if (el.innerHTML !== el.dataset.originalHtml || style !== el.dataset.originalStyle) {
-          payload[el.dataset.editId] = { html: el.innerHTML, style };
-        }
-      });
-      localStorage.setItem(EDIT_KEY, JSON.stringify(payload));
-      editStatus.textContent = "Saved";
-    }
-
-    function scheduleSave() {
-      editStatus.textContent = "Saving";
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(writeEdits, 250);
-    }
-
-    function restoreEdits() {
-      const payload = readEdits();
-      editables.forEach((el) => {
-        if (Object.prototype.hasOwnProperty.call(payload, el.dataset.editId)) {
-          const saved = payload[el.dataset.editId];
-          if (typeof saved === "string") {
-            el.innerHTML = saved;
-          } else {
-            el.innerHTML = saved.html ?? el.innerHTML;
-            if (saved.style) el.setAttribute("style", saved.style);
-            else el.removeAttribute("style");
-          }
-        }
-      });
-    }
-
-    function selectEditable(el) {
-      if (!el || !editables.includes(el)) return;
-      if (selectedEditable) selectedEditable.classList.remove("editing-selected");
-      selectedEditable = el;
-      selectedEditable.classList.add("editing-selected");
-      fontSizeControl.value = selectedEditable.style.fontSize || "";
-      const color = selectedEditable.style.color;
-      if (color) {
-        const probe = document.createElement("span");
-        probe.style.color = color;
-        document.body.appendChild(probe);
-        const rgb = getComputedStyle(probe).color.match(/\d+/g)?.map(Number) || [10, 10, 10];
-        probe.remove();
-        fontColorControl.value = `#${rgb.slice(0, 3).map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-      }
-    }
-
-    function applyTextStyle(prop, value) {
-      if (!selectedEditable) return;
-      selectedEditable.style[prop] = value;
-      scheduleSave();
-    }
-
-    function persistSelectedBoxSize() {
-      if (!editing || !selectedEditable) return;
-      const rect = selectedEditable.getBoundingClientRect();
-      const width = Math.max(32, Math.round(rect.width));
-      const height = Math.max(18, Math.round(rect.height));
-      selectedEditable.style.width = `${width}px`;
-      selectedEditable.style.height = `${height}px`;
-      scheduleSave();
-    }
-
-    function setEditing(next) {
-      editing = next;
-      document.body.classList.toggle("editing", editing);
-      editToggle.classList.toggle("active", editing);
-      editToggle.textContent = editing ? "Done" : "Edit Text";
-      editables.forEach((el) => {
-        if (editing) {
-          el.setAttribute("contenteditable", "true");
-          el.setAttribute("spellcheck", "false");
-        } else {
-          el.removeAttribute("contenteditable");
-          el.removeAttribute("spellcheck");
-        }
-      });
-      if (!editing && selectedEditable) {
-        selectedEditable.classList.remove("editing-selected");
-        selectedEditable = null;
-      }
-      editStatus.textContent = editing ? "Editing" : "Saved";
-      if (!editing) writeEdits();
-    }
-
-    function render() {
-      slides.forEach((slide, index) => {
-        slide.classList.toggle("active", index === current);
-        const num = slide.querySelector(".num");
-        if (num) num.textContent = `${String(index + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
-        const progress = slide.querySelector(".progress > span");
-        if (progress) progress.style.setProperty("--p", `${((index + 1) / slides.length) * 100}%`);
-      });
-      document.title = `LLM 시대의 재무모델링 (${current + 1}/${slides.length})`;
-    }
-
-    function move(delta) {
-      current = Math.max(0, Math.min(slides.length - 1, current + delta));
-      render();
-    }
-
-    document.addEventListener("keydown", (event) => {
-      if (event.target && event.target.closest("[contenteditable='true']")) return;
-      if (["ArrowRight", "PageDown", " "].includes(event.key)) move(1);
-      if (["ArrowLeft", "PageUp"].includes(event.key)) move(-1);
-      if (event.key === "Home") { current = 0; render(); }
-      if (event.key === "End") { current = slides.length - 1; render(); }
-    });
-
-    document.addEventListener("click", (event) => {
-      if (editing || event.target.closest(".edit-toolbar")) return;
-      if (event.clientX > window.innerWidth * 0.66) move(1);
-      if (event.clientX < window.innerWidth * 0.34) move(-1);
-    });
-
-    editables.forEach((el) => {
-      el.addEventListener("input", scheduleSave);
-      el.addEventListener("focus", () => selectEditable(el));
-      el.addEventListener("click", () => selectEditable(el));
-    });
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (!editing || !selectedEditable || suppressResizePersist) return;
-      if (!entries.some((entry) => entry.target === selectedEditable)) return;
-      cancelAnimationFrame(resizeFrame);
-      resizeFrame = requestAnimationFrame(persistSelectedBoxSize);
-    });
-    editables.forEach((el) => resizeObserver.observe(el));
-    fontSizeControl.addEventListener("change", () => applyTextStyle("fontSize", fontSizeControl.value));
-    fontColorControl.addEventListener("input", () => applyTextStyle("color", fontColorControl.value));
-    boxReset.addEventListener("click", () => {
-      if (!selectedEditable) return;
-      suppressResizePersist = true;
-      selectedEditable.style.removeProperty("width");
-      selectedEditable.style.removeProperty("height");
-      scheduleSave();
-      setTimeout(() => { suppressResizePersist = false; }, 400);
-    });
-    editToggle.addEventListener("click", () => setEditing(!editing));
-    editReset.addEventListener("click", () => {
-      localStorage.removeItem(EDIT_KEY);
-      editables.forEach((el) => {
-        el.innerHTML = el.dataset.originalHtml;
-        if (el.dataset.originalStyle) el.setAttribute("style", el.dataset.originalStyle);
-        else el.removeAttribute("style");
-        el.classList.remove("editing-selected");
-      });
-      selectedEditable = null;
-      editStatus.textContent = "Reset";
-      setTimeout(() => { editStatus.textContent = editing ? "Editing" : "Saved"; }, 700);
-    });
-
-    restoreEdits();
-    render();
-  </script>
+</div>
 </body>
 </html>

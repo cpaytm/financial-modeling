@@ -791,7 +791,8 @@ def _kcar_sheet_nodes(D: dict[str, dict], order: list[str]) -> dict[str, list[st
 
 
 def build_workbook(data: dict, out_path: Path) -> None:
-    D: dict[str, dict] = data["D"]
+    # HTML 내보내기는 "MODEL" 키를 쓴다. 예전 파일은 "D"였으므로 둘 다 받는다.
+    D: dict[str, dict] = data.get("MODEL") or data["D"]
     YRS: list[str] = [str(y) for y in data["YRS"]]
     hist_n = max(0, min(int(data.get("HIST_N", 1) or 0), len(YRS)))
     display_order = _tree_order(D)

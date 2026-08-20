@@ -451,7 +451,7 @@ svg.fmchart{display:block;width:100%;height:auto;overflow:visible}
 //
 // 채워야 할 블록:
 //   1. YRS          — 시간축 (실적+추정 연도 배열)
-//   2. D            — 데이터 객체 (모든 시계열)
+//   2. MODEL            — 데이터 객체 (모든 시계열)
 //   3. INPUT_KEYS   — 입력 변수 식별
 //   4. TREE         — 트리 구조
 //   5. P&L 테이블   — showRevTable() 안의 row() 호출
@@ -462,7 +462,7 @@ svg.fmchart{display:block;width:100%;height:auto;overflow:visible}
 // ============================================================
 
 // YRS — 시간축. 첫 항목은 관행상 실적 연도 (시뮬레이터에서 잠금).
-// 길이가 모든 D[k].v 및 DEFAULTS_S[k]의 길이와 일치해야 함. 엔진은 YRS.length에 맞춰 자동 동작.
+// 길이가 모든 MODEL[k].v 및 DEFAULTS_S[k]의 길이와 일치해야 함. 엔진은 YRS.length에 맞춰 자동 동작.
 const YRS=['2022','2023','2024','2025','2026','2027','2028','2029','2030','2031'];  // 2022~2025 실적, 2026~2031 추정(5개년+)
 const HIST_N=4;            // 실적(확정) 연도 수: 2022~2025 (index 0~3). 이후는 추정(Forecast).
 const _isFc=i=>i>=HIST_N;  // i번째 연도가 추정이면 true
@@ -497,7 +497,7 @@ const _isFc=i=>i>=HIST_N;  // i번째 연도가 추정이면 true
 // 2022~2025 실적 reconcile 검증 완료(오차 0). 2026~2028 추정.
 // 비용/영업이익은 별도 단계에서 추가. 본 트리는 매출 레이어.
 // ============================================================
-const D={
+const MODEL={
   // ===== Root: 총매출 (primary.900 #1E2185) =====
   root: {
     label:'테슬라 총매출', sub:'Auto + Energy + Services',
@@ -642,7 +642,7 @@ const D={
 };
 
 // ============================================================
-// 파생 인덱스 — D에서 자동 계산. D 편집 시 rebuildIndexes()로 갱신.
+// 파생 인덱스 — MODEL에서 자동 계산. MODEL 편집 시 rebuildIndexes()로 갱신.
 // ============================================================
 let INPUT_KEYS=new Set();
 let TREE=null;
@@ -650,21 +650,21 @@ let GRAPH=null;
 let SIM_SECS=[];  // 초기 빈 배열, buildSimSecs()이 채움 (선언 순서 의존성 회피)
 
 function rebuildIndexes(){
-  INPUT_KEYS = new Set(Object.keys(D).filter(k=>D[k].type==='input'));
+  INPUT_KEYS = new Set(Object.keys(MODEL).filter(k=>MODEL[k].type==='input'));
   TREE = buildTree();
   GRAPH = buildGraph();
   if(typeof buildSimSecs==='function') SIM_SECS = buildSimSecs();
 }
 
 // ============================================================
-// GRAPH — D에서 파생되는 그래프 색인
+// GRAPH — MODEL에서 파생되는 그래프 색인
 //
-// D에는 엣지가 두 종류 들어 있다.
+// MODEL에는 엣지가 두 종류 들어 있다.
 //   parent  → 집계 트리 (화면 구조: 무엇이 무엇에 속하는가)
 //   formula → 계산 의존성 (값의 흐름: 무엇으로부터 계산되는가)
 // 둘은 같지 않다. PREV()나 서브트리를 가로지르는 공유 드라이버가 끼면 갈라진다.
 //
-// 색인 전에는 childrenOf/rootId/depthOf/pathOf가 호출마다 D 전체를 훑어
+// 색인 전에는 childrenOf/rootId/depthOf/pathOf가 호출마다 MODEL 전체를 훑어
 // 렌더가 O(n²)였다. 여기서 한 번 만들어두고 전부 조회로 바꾼다.
 //
 // 그리고 formula 엣지의 역방향(dependents)을 처음으로 갖게 된다.
@@ -680,22 +680,22 @@ function buildGraph(){
           deps:{}, dependents:{}, order:[], inputs:[], _depsReady:false };
 
   // ── 트리 엣지 (parent) ──
-  // for..in 순서 = D 정의 순서. 자식 배열 순서가 곧 화면 순서라 유지해야 한다.
-  for(let k in D){
-    let p=D[k].parent;
-    if(p!=null && D[p]){ g.parent[k]=p; (g.children[p]=g.children[p]||[]).push(k); }
+  // for..in 순서 = MODEL 정의 순서. 자식 배열 순서가 곧 화면 순서라 유지해야 한다.
+  for(let k in MODEL){
+    let p=MODEL[k].parent;
+    if(p!=null && MODEL[p]){ g.parent[k]=p; (g.children[p]=g.children[p]||[]).push(k); }
     else { g.parent[k]=null; if(g.root==null) g.root=k; }
   }
-  if(g.root==null) g.root=Object.keys(D)[0]||null;
+  if(g.root==null) g.root=Object.keys(MODEL)[0]||null;
 
   // ── depth / path — 부모 체인을 따라 올라간다 (순환 방어 guard) ──
-  for(let k in D){
+  for(let k in MODEL){
     let arr=[], cur=k, guard=0;
-    while(D[cur] && guard++<60){ arr.unshift(cur); cur=g.parent[cur]; }
+    while(MODEL[cur] && guard++<60){ arr.unshift(cur); cur=g.parent[cur]; }
     g.path[k]=arr; g.depth[k]=arr.length-1;
   }
 
-  g.inputs=Object.keys(D).filter(k=>D[k].type==='input');
+  g.inputs=Object.keys(MODEL).filter(k=>MODEL[k].type==='input');
   return g;
 }
 
@@ -706,9 +706,9 @@ function graphDeps(){
   let g=GRAPH;
   g.order=topoSort();
   g.deps={}; g.dependents={};
-  for(let k in D){
+  for(let k in MODEL){
     let list=[];
-    if(D[k]._deps) D[k]._deps.forEach(x=>{ if(D[x]) list.push(x); });
+    if(MODEL[k]._deps) MODEL[k]._deps.forEach(x=>{ if(MODEL[x]) list.push(x); });
     g.deps[k]=list;
     list.forEach(x=>{ (g.dependents[x]=g.dependents[x]||[]).push(k); });
   }
@@ -737,7 +737,7 @@ function descendantsOf(id){
 }
 // id를 실제로 움직이는 가정변수. 트리 하위가 아니라 수식 의존성 기준이다.
 function driversOf(id){
-  return ancestorsOf(id).filter(k=>D[k] && D[k].type==='input');
+  return ancestorsOf(id).filter(k=>MODEL[k] && MODEL[k].type==='input');
 }
 // 어떤 계산에도 쓰이지 않는 가정변수 — 오타나 삭제 잔재
 function unusedInputs(){
@@ -750,16 +750,16 @@ function sharedDrivers(a,b){
   return driversOf(b).filter(k=>A.has(k));
 }
 
-// buildTree() — D의 parent 필드를 따라 시각 트리 구성
+// buildTree() — MODEL의 parent 필드를 따라 시각 트리 구성
 function buildTree(){
   let childrenOf={};
-  for(let k in D){
-    let p=D[k].parent;
-    if(p==null||!D[p])continue;
+  for(let k in MODEL){
+    let p=MODEL[k].parent;
+    if(p==null||!MODEL[p])continue;
     (childrenOf[p]=childrenOf[p]||[]).push(k);
   }
   function makeNode(id){
-    let d=D[id]; if(!d)return null;
+    let d=MODEL[id]; if(!d)return null;
     let kids=childrenOf[id]||[];
     let n={id, label:d.label, sub:d.sub, data:id};
     if(d.type==='input'){
@@ -782,7 +782,7 @@ rebuildIndexes();
 const NW=170,NH=48,DH=40,GX=22,GY=22,PAD=40,ICON_W=20;
 const dpr=window.devicePixelRatio||1;
 let cvs,ctx,W,H,cam={x:0,y:0,s:1};
-let openSet=new Set(['root'].concat(Object.keys(D).filter(k=>D[k].parent==='root')));
+let openSet=new Set(['root'].concat(Object.keys(MODEL).filter(k=>MODEL[k].parent==='root')));
 let positions={},allNodes=[],hoverId=null,hoverChart=null,selectedId=null;
 
 function nodeH(n){return n.drv?DH:NH}
@@ -809,7 +809,7 @@ function getPos(id){
 }
 function drawConns(n,par){if(par){let pp=getPos(par.id),cp=getPos(n.id);if(pp&&cp){let px=pp.x+pp.w,py=pp.y+pp.h/2,cx=cp.x,cy=cp.y+cp.h/2;ctx.save();ctx.strokeStyle=n.drv?'#D1D5DB':'#9CA3AF';ctx.lineWidth=n.drv?0.6:0.8;if(n.drv)ctx.setLineDash([3,2]);else ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(px,py);let mx=(px+cx)/2;ctx.bezierCurveTo(mx,py,mx,cy,cx,cy);ctx.stroke();ctx.restore()}}if(n.children&&n.children.length&&openSet.has(n.id))n.children.forEach(c=>drawConns(c,n))}
 
-function drawNode(n){let p=getPos(n.id);if(!p)return;let{x,y,w,h}=p;let isH=hoverId===n.id;let hasData=n.data&&D[n.data];
+function drawNode(n){let p=getPos(n.id);if(!p)return;let{x,y,w,h}=p;let isH=hoverId===n.id;let hasData=n.data&&MODEL[n.data];
   if(n.drv){rrect(x,y,w,h,4,'#F8F8FA','#D1D5DB',0.5,[3,2]);if(isH)rrect(x,y,w,h,4,'rgba(0,0,0,0.03)');
   let _isInp=n.data&&INPUT_KEYS.has(n.data);
   if(_isInp){
@@ -820,7 +820,7 @@ function drawNode(n){let p=getPos(n.id);if(!p)return;let{x,y,w,h}=p;let isH=hove
   if(hasData){let ic=hoverChart===n.id?'#4B5563':'#D1D5DB';ctx.save();ctx.fillStyle=ic;ctx.fillRect(x+w-18,y+8,3,7);ctx.fillRect(x+w-13,y+5,3,10);ctx.fillRect(x+w-8,y+3,3,12);ctx.restore()}}
   else{let bg=n.bg||'#FFFFFF',bdr=n.bdr||'#D1D5DB',fg=n.fg||'#374151',sfg=n.sfg||'#9CA3AF',dk=fg==='#FFFFFF';rrect(x,y,w,h,dk?8:6,bg,bdr,dk?0:0.7);if(isH)rrect(x,y,w,h,dk?8:6,dk?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.04)');let ly=n.sub?y+h*.36:y+h/2;txt(n.label,x+w/2,ly,11,'600',fg,'center');if(n.sub)txt(n.sub,x+w/2,y+h*.68,8.5,'400',sfg,'center');let hk=n.children&&n.children.length;if(hk){let ar=openSet.has(n.id)?'◀':'▶';txt(ar,x+w-13,y+h/2,7.5,'400',dk?'rgba(255,255,255,0.3)':'#D1D5DB')}if(hasData){if(dk){let ic=hoverChart===n.id?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.25)';ctx.save();ctx.fillStyle=ic;ctx.fillRect(x+w-18,y+10,3,7);ctx.fillRect(x+w-13,y+7,3,10);ctx.fillRect(x+w-8,y+5,3,12);ctx.restore()}else{let ic=hoverChart===n.id?'#4B5563':'#D1D5DB';ctx.save();ctx.fillStyle=ic;ctx.fillRect(x+w-18,y+10,3,7);ctx.fillRect(x+w-13,y+7,3,10);ctx.fillRect(x+w-8,y+5,3,12);ctx.restore()}}}
   // 에러 인디케이터 (수식 syntax / 미정의 변수 / 순환참조)
-  if(n.data && D[n.data] && D[n.data]._error){
+  if(n.data && MODEL[n.data] && MODEL[n.data]._error){
     ctx.save();
     ctx.fillStyle='#DC2626';
     ctx.beginPath();ctx.arc(x+w-6,y+6,4,0,Math.PI*2);ctx.fill();
@@ -863,7 +863,7 @@ let _currentChartNode=null;
 function showChart(node){
   _currentChartNode=node;
   let datasets=[];
-  if(node.data&&D[node.data])datasets.push({label:node.label,key:node.data});
+  if(node.data&&MODEL[node.data])datasets.push({label:node.label,key:node.data});
   if(node.extra)node.extra.forEach(e=>datasets.push({label:e.label,key:e.data}));
   if(!datasets.length)return;
   document.getElementById('popupTitle').textContent=node.label;
@@ -871,7 +871,7 @@ function showChart(node){
   let body=document.getElementById('popupBody');body.innerHTML='';
 
   datasets.forEach(ds=>{
-    let d=D[ds.key];if(!d)return;
+    let d=MODEL[ds.key];if(!d)return;
     let vals=d.v,u=d.u,pct=d.pct,color=d.c||'#888';
     let maxV=Math.max(...vals.map(Math.abs),1);
     let sec=document.createElement('div');sec.className='ds-section';
@@ -975,11 +975,11 @@ function renderBridge(fi, ti, parentSec){
   // 색상은 DS 토큰 (primary scale + neutrals) 사용 권장.
   // ============================================================
   const BMS={
-    '① Automotive':{v:D.auto_total.v.slice(), c:'#1E2185'},   // primary.900
-    '② Energy':{v:D.energy_total.v.slice(), c:'#3332D0'},      // primary.700
-    '③ Services':{v:D.services_total.v.slice(), c:'#7C91FD'},  // primary.400
+    '① Automotive':{v:MODEL.auto_total.v.slice(), c:'#1E2185'},   // primary.900
+    '② Energy':{v:MODEL.energy_total.v.slice(), c:'#3332D0'},      // primary.700
+    '③ Services':{v:MODEL.services_total.v.slice(), c:'#7C91FD'},  // primary.400
   };
-  const TOT=D.root.v.slice();
+  const TOT=MODEL.root.v.slice();
   const bnames=Object.keys(BMS);
   const bfmt=v=>{let a=Math.abs(v),s=v<0?'-':'';if(a>=1e6)return s+(a/1e6).toFixed(1)+'조$'; if(a>=1e3)return s+(a/1e3).toFixed(1)+'십억$'; return s+Math.round(a).toLocaleString()+'백만$'};
 
@@ -1088,7 +1088,7 @@ function refreshOpenChart(){
   // Re-render chart body without closing/reopening popup
   let datasets=[];
   let node=_currentChartNode;
-  if(node.data&&D[node.data])datasets.push({label:node.label,key:node.data});
+  if(node.data&&MODEL[node.data])datasets.push({label:node.label,key:node.data});
   if(node.extra)node.extra.forEach(e=>datasets.push({label:e.label,key:e.data}));
   if(!datasets.length)return;
   let body=document.getElementById('popupBody');
@@ -1096,7 +1096,7 @@ function refreshOpenChart(){
   let scrollTop=body.parentElement.scrollTop;
   body.innerHTML='';
   datasets.forEach(ds=>{
-    let d=D[ds.key];if(!d)return;
+    let d=MODEL[ds.key];if(!d)return;
     let vals=d.v,u=d.u,pct=d.pct,color=d.c||'#888';
     let maxV=Math.max(...vals.map(Math.abs),1);
     let sec=document.createElement('div');sec.className='ds-section';
@@ -1149,7 +1149,7 @@ function showRevTable(){
   let _tblCollapsed=new Set();
 
   function row(label,key,indent,bold,color,parentGroup){
-    let vals=D[key]?D[key].v:[];if(!vals.length)return;
+    let vals=MODEL[key]?MODEL[key].v:[];if(!vals.length)return;
     let tr=document.createElement('tr');
     tr.style.borderBottom='0.5px solid #F9FAFB';
     if(bold)tr.style.background='#F9FAFB';
@@ -1182,18 +1182,18 @@ function showRevTable(){
   function spacer(){let sp=document.createElement('tr');sp.innerHTML='<td colspan="8" style="height:4px"></td>';tbl.appendChild(sp)}
   function bigSpacer(){let sp=document.createElement('tr');sp.innerHTML='<td colspan="8" style="height:12px;border-top:2px solid #E5E5E8"></td>';tbl.appendChild(sp)}
 
-  // ========== P&L 테이블 행 — D 트리에서 자동 생성 ==========
+  // ========== P&L 테이블 행 — MODEL 트리에서 자동 생성 ==========
   // root의 자식들이 top-level (bold), 그 아래는 indent 증가
   function _walkPL(id, indent, parentGroup){
-    let d=D[id]; if(!d) return;
+    let d=MODEL[id]; if(!d) return;
     let isTop=indent===0;
     let color = isTop ? (d.bg && d.bg!=='#FFFFFF' ? d.bg : null) : '#6B7280';
     row(d.label, id, indent, isTop, color, parentGroup);
-    let kids=Object.keys(D).filter(k=>D[k].parent===id);
+    let kids=Object.keys(MODEL).filter(k=>MODEL[k].parent===id);
     let nextGroup=isTop?id:parentGroup;
     kids.forEach(k=>_walkPL(k, indent+1, nextGroup));
   }
-  let _topItems=Object.keys(D).filter(k=>D[k].parent==='root');
+  let _topItems=Object.keys(MODEL).filter(k=>MODEL[k].parent==='root');
   _topItems.forEach((id, i)=>{
     if(i>0) bigSpacer();
     _walkPL(id, 0, null);
@@ -1216,7 +1216,7 @@ function closePopup(){_currentChartNode=null;document.getElementById('popupOverl
 
 // ============ INTERACTION ============
 function s2w(sx,sy){let r=cvs.getBoundingClientRect();return{x:(sx-r.left-cam.x)/cam.s,y:(sy-r.top-cam.y)/cam.s}}
-function hitTest(sx,sy){let w=s2w(sx,sy);for(let i=allNodes.length-1;i>=0;i--){let n=allNodes[i],p=getPos(n.id);if(!p)continue;if(w.x>=p.x&&w.x<=p.x+p.w&&w.y>=p.y&&w.y<=p.y+p.h){let inChart=n.data&&D[n.data]&&w.x>=p.x+p.w-ICON_W&&w.y<=p.y+24;return{node:n,isChart:inChart}}}return null}
+function hitTest(sx,sy){let w=s2w(sx,sy);for(let i=allNodes.length-1;i>=0;i--){let n=allNodes[i],p=getPos(n.id);if(!p)continue;if(w.x>=p.x&&w.x<=p.x+p.w&&w.y>=p.y&&w.y<=p.y+p.h){let inChart=n.data&&MODEL[n.data]&&w.x>=p.x+p.w-ICON_W&&w.y<=p.y+24;return{node:n,isChart:inChart}}}return null}
 function canToggle(n){return n.children&&n.children.length>0}
 let drag=false,dragStart={x:0,y:0},camStart={x:0,y:0},clickStart=null;
 let nodeDrag=null; // {nodeId, startX, startY}
@@ -1298,7 +1298,7 @@ function toggleAll(open){nodeOffsets={};function walk(n){if(canToggle(n)){if(ope
 function closeAssum(){document.getElementById('assumOverlay').style.display='none'}
 // ========== 변수 설명 모달 (비고 → 버튼 → 불릿 모달) ==========
 function showVarDesc(key){
-  let d=D[key]; if(!d) return;
+  let d=MODEL[key]; if(!d) return;
   let raw=(d.desc||'').trim();
   // 선두 [태그] 추출 (· 로 다중 태그 분리)
   let tags=[];
@@ -1316,35 +1316,35 @@ function showVarDesc(key){
       +'<h3 style="font-size:16px;font-weight:700;color:#1E2185;flex:1;margin:0;font-family:Outfit,Pretendard,sans-serif">'+d.label+'</h3>'
       +'<button onclick="this.closest(\'.varDescOverlay\').remove()" style="border:none;background:none;font-size:19px;color:#D1D5DB;cursor:pointer;line-height:1;padding:0">✕</button>'
     +'</div>'
-    +'<div style="font-size:10px;color:#9CA3AF;margin-bottom:12px">단위: '+(d.u||'-')+(D[key].type==='input'?' · 가정변수(하드코딩)':'')+'</div>'
+    +'<div style="font-size:10px;color:#9CA3AF;margin-bottom:12px">단위: '+(d.u||'-')+(MODEL[key].type==='input'?' · 가정변수(하드코딩)':'')+'</div>'
     +'<ul style="margin:2px 0 0;padding-left:18px;font-size:12.5px">'+lis+'</ul>'
     +'</div>';
   document.body.appendChild(ov);
 }
 
 function showAssumptions(){
-  // ========== 가정변수 일람 — D에서 자동 생성 ==========
-  // 입력 노드를 parent별로 그룹핑. note는 D[k].desc 사용.
+  // ========== 가정변수 일람 — MODEL에서 자동 생성 ==========
+  // 입력 노드를 parent별로 그룹핑. note는 MODEL[k].desc 사용.
   let byParent={};
   for(let k of INPUT_KEYS){
-    let d=D[k]; if(!d) continue;
+    let d=MODEL[k]; if(!d) continue;
     let p=d.parent||'_orphan';
     (byParent[p]=byParent[p]||[]).push(k);
   }
   let _ord=[];
   function _walkA(id){
-    let kids=Object.keys(D).filter(k=>D[k].parent===id);
+    let kids=Object.keys(MODEL).filter(k=>MODEL[k].parent===id);
     if(byParent[id]) _ord.push(id);
     kids.forEach(_walkA);
   }
   _walkA('root');
   if(byParent['_orphan']) _ord.push('_orphan');
   const sections=_ord.map(pid=>{
-    let p=D[pid]||{};
+    let p=MODEL[pid]||{};
     return {
       title:(p.label||pid)+' — 드라이버',
       color:p.bg||p.c||'#5D68F7',
-      items:byParent[pid].map(k=>({key:k, label:D[k].label, note:descBody(D[k].desc)}))
+      items:byParent[pid].map(k=>({key:k, label:MODEL[k].label, note:descBody(MODEL[k].desc)}))
     };
   });
 
@@ -1381,7 +1381,7 @@ function showAssumptions(){
     tbl.appendChild(th);
 
     sec.items.forEach(item=>{
-      let d=D[item.key];
+      let d=MODEL[item.key];
       if(!d)return;
       let tr=document.createElement('tr');
       tr.style.cssText='border-bottom:0.5px solid #F9FAFB';
@@ -1415,7 +1415,7 @@ function showAssumptions(){
 function _esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 // ----- 선택 기반 툴바 액션 -----
-function hasChildren(id){ return Object.keys(D).some(k=>D[k].parent===id); }
+function hasChildren(id){ return Object.keys(MODEL).some(k=>MODEL[k].parent===id); }
 
 function updateSelectedToolbar(){
   let lbl=document.getElementById('selLabel');
@@ -1423,10 +1423,10 @@ function updateSelectedToolbar(){
   let btnE=document.getElementById('btnEdit');
   let btnD=document.getElementById('btnDelete');
   let btnP=document.getElementById('btnOpenPage');
-  if(btnP) btnP.disabled=!(selectedId&&D[selectedId]);
+  if(btnP) btnP.disabled=!(selectedId&&MODEL[selectedId]);
   if(!lbl||!btnA) return;
-  if(selectedId && D[selectedId]){
-    lbl.textContent='선택: '+(D[selectedId].label||selectedId);
+  if(selectedId && MODEL[selectedId]){
+    lbl.textContent='선택: '+(MODEL[selectedId].label||selectedId);
     lbl.style.color='#1E2185';
     let already=hasChildren(selectedId);
     btnA.disabled=already;
@@ -1459,16 +1459,16 @@ let _editNew=[];      // 분해 편집 시 새로 추가할 자식
 function _editErr(elId,msg){let el=document.getElementById(elId);el.textContent=msg;el.style.display='block'}
 
 function showEditModal(id){
-  let d=D[id]; if(!d) return;
+  let d=MODEL[id]; if(!d) return;
   hideCtxMenu();
-  let kids=Object.keys(D).filter(k=>D[k].parent===id);
+  let kids=Object.keys(MODEL).filter(k=>MODEL[k].parent===id);
   if(kids.length>0){ _showDecompEditModal(id, kids); }
   else { _showLeafEditModal(id); }
 }
 
 // (a) Leaf 편집 — 자식 없는 노드
 function _showLeafEditModal(id){
-  let d=D[id];
+  let d=MODEL[id];
   let pop=document.getElementById('editPopup');
   if(pop){ pop.style.minWidth='480px'; pop.style.maxWidth='580px'; }
   document.getElementById('editTitle').textContent='편집: '+(d.label||id);
@@ -1506,7 +1506,7 @@ function _showLeafEditModal(id){
 }
 
 function applyLeafEdit(id){
-  let d=D[id]; if(!d) return;
+  let d=MODEL[id]; if(!d) return;
   let label=document.getElementById('_e_label').value.trim();
   let type=document.getElementById('_e_type').value;
   let formula=document.getElementById('_e_formula').value.trim();
@@ -1532,14 +1532,14 @@ function applyLeafEdit(id){
 
 // (b) 분해 노드 편집 — 자식 목록 관리 포함
 function _showDecompEditModal(id, kids){
-  let d=D[id];
+  let d=MODEL[id];
   let pop=document.getElementById('editPopup');
   if(pop){ pop.style.minWidth='560px'; pop.style.maxWidth='760px'; }
   // 기존 자식 상태 초기화 (스냅샷)
   _editExisting=kids.map(k=>{
-    let cd=D[k];
+    let cd=MODEL[k];
     return {id:k, label:cd.label||'', unit:cd.u||'원', deleted:false,
-            isInput:cd.type==='input', hasGrandchildren:Object.keys(D).some(x=>D[x].parent===k)};
+            isInput:cd.type==='input', hasGrandchildren:Object.keys(MODEL).some(x=>MODEL[x].parent===k)};
   });
   _editNew=[];
   let curErr=d._error?'<div class="error" style="display:block;margin-top:6px">⚠ 현재 수식 에러: '+_esc(d._error)+'</div>':'';
@@ -1623,7 +1623,7 @@ function _editNewAdd(){ _editNew.push({id:'', label:'', unit:'원', val:0}); _ed
 function _editNewRemove(i){ _editNew.splice(i,1); _editRenderNew(); }
 
 function applyDecompEdit(id){
-  let d=D[id]; if(!d) return;
+  let d=MODEL[id]; if(!d) return;
   let label=document.getElementById('_e_label').value.trim();
   let formula=document.getElementById('_e_formula').value.trim();
   let unit=document.getElementById('_e_unit').value.trim();
@@ -1637,7 +1637,7 @@ function applyDecompEdit(id){
   }
   // 새 자식 검증
   let rx=/^[a-zA-Z_][a-zA-Z_0-9]*$/;
-  let allIds=new Set(Object.keys(D));
+  let allIds=new Set(Object.keys(MODEL));
   _editExisting.filter(c=>c.deleted).forEach(c=>allIds.delete(c.id));
   for(let i=0;i<_editNew.length;i++){
     let c=_editNew[i];
@@ -1661,12 +1661,12 @@ function applyDecompEdit(id){
     if(c.deleted){
       // cascade 삭제
       function _cascade(k){
-        Object.keys(D).filter(x=>D[x].parent===k).forEach(_cascade);
-        delete D[k]; delete SV[k]; delete DEFAULTS_S[k];
+        Object.keys(MODEL).filter(x=>MODEL[x].parent===k).forEach(_cascade);
+        delete MODEL[k]; delete SV[k]; delete DEFAULTS_S[k];
       }
       _cascade(c.id);
     } else {
-      let cd=D[c.id];
+      let cd=MODEL[c.id];
       if(cd){ cd.label=c.label; cd.u=c.unit||'원'; }
     }
   }
@@ -1675,7 +1675,7 @@ function applyDecompEdit(id){
   let existingKidCount=_editExisting.filter(c=>!c.deleted).length;
   _editNew.forEach((c,i)=>{
     let arr=Array(YRS.length).fill(c.val);
-    D[c.id]={label:c.label, parent:id, type:'input', v:arr, u:c.unit||'원', desc:'', c:palette[(existingKidCount+i)%palette.length]};
+    MODEL[c.id]={label:c.label, parent:id, type:'input', v:arr, u:c.unit||'원', desc:'', c:palette[(existingKidCount+i)%palette.length]};
     SV[c.id]=arr.slice(); DEFAULTS_S[c.id]=arr.slice();
   });
   // 부모 업데이트
@@ -1714,7 +1714,7 @@ function _decompRemove(i){ if(_decompChildren.length<=1) return; _decompChildren
 
 function showAddChildModal(parentId){
   hideCtxMenu();
-  let p=D[parentId]; if(!p) return;
+  let p=MODEL[parentId]; if(!p) return;
   let curVal=(p.v&&p.v[1])||1;
   // 초기 자식 2개로 시작 (사용자가 추가/제거 가능)
   _decompChildren=[
@@ -1762,7 +1762,7 @@ function applyAddChild(parentId){
     let c=_decompChildren[i];
     if(!c.id){ _editErr('_a_err','자식 '+(i+1)+': ID 필수'); return; }
     if(!rx.test(c.id)){ _editErr('_a_err','자식 '+(i+1)+': ID 형식 오류 ('+c.id+')'); return; }
-    if(D[c.id]){ _editErr('_a_err','이미 존재하는 ID: '+c.id); return; }
+    if(MODEL[c.id]){ _editErr('_a_err','이미 존재하는 ID: '+c.id); return; }
     if(seen.has(c.id)){ _editErr('_a_err','중복 ID: '+c.id); return; }
     if(!c.label){ _editErr('_a_err','자식 '+(i+1)+': 표시명 필수'); return; }
     seen.add(c.id);
@@ -1773,7 +1773,7 @@ function applyAddChild(parentId){
   try{ ast=parseFormula(formula); } catch(e){ _editErr('_a_err','수식 파싱: '+e.message); return; }
   let deps=extractDeps(ast);
   for(let dep of deps){
-    if(!D[dep] && !seen.has(dep)){
+    if(!MODEL[dep] && !seen.has(dep)){
       _editErr('_a_err','미정의 변수 참조: '+dep+' (자식으로 추가하거나 오타 확인)');
       return;
     }
@@ -1783,13 +1783,13 @@ function applyAddChild(parentId){
   let palette=['#5D68F7','#7C91FD','#A1B8FF','#9CA3AF','#6B7280','#3332D0'];
   _decompChildren.forEach((c,i)=>{
     let arr=Array(YRS.length).fill(c.val);
-    D[c.id]={label:c.label, parent:parentId, type:'input', v:arr, u:c.unit||'원', desc:'', c:palette[i%palette.length]};
+    MODEL[c.id]={label:c.label, parent:parentId, type:'input', v:arr, u:c.unit||'원', desc:'', c:palette[i%palette.length]};
     SV[c.id]=arr.slice();
     DEFAULTS_S[c.id]=arr.slice();
   });
 
   // 부모를 computed로 전환
-  let p=D[parentId];
+  let p=MODEL[parentId];
   p.type='computed';
   p.formula=formula;
   p.sub=formula;
@@ -1802,20 +1802,20 @@ function applyAddChild(parentId){
 function deleteNodeUI(id){
   if(id==='root') return;
   hideCtxMenu();
-  let kids=Object.keys(D).filter(k=>D[k].parent===id);
+  let kids=Object.keys(MODEL).filter(k=>MODEL[k].parent===id);
   let deps=[];
-  for(let k in D){
-    let d=D[k]; if(!d.formula) continue;
+  for(let k in MODEL){
+    let d=MODEL[k]; if(!d.formula) continue;
     try{ if(extractDeps(parseFormula(d.formula)).has(id)) deps.push(k); } catch(e){}
   }
-  let msg='"'+(D[id].label||id)+'" 삭제';
+  let msg='"'+(MODEL[id].label||id)+'" 삭제';
   if(kids.length) msg+='\n자식 '+kids.length+'개도 함께 삭제';
   if(deps.length) msg+='\n경고: '+deps.length+'개 노드가 이 변수를 참조 (수식 에러로 표시됨): '+deps.join(', ');
   msg+='\n\n계속하시겠습니까?';
   if(!confirm(msg)) return;
   function cascade(k){
-    Object.keys(D).filter(c=>D[c].parent===k).forEach(cascade);
-    delete D[k]; delete SV[k]; delete DEFAULTS_S[k];
+    Object.keys(MODEL).filter(c=>MODEL[c].parent===k).forEach(cascade);
+    delete MODEL[k]; delete SV[k]; delete DEFAULTS_S[k];
   }
   cascade(id);
   closeEdit();
@@ -1829,7 +1829,7 @@ function _afterEdit(){
   if(typeof saveToStorage==='function') saveToStorage();
   simCalc();
   // 삭제 후 selectedId가 사라진 노드 가리키면 클리어
-  if(selectedId && !D[selectedId]) selectedId=null;
+  if(selectedId && !MODEL[selectedId]) selectedId=null;
   updateSelectedToolbar();
   renderAll();
   closeEdit();
@@ -1896,15 +1896,15 @@ function _storageSafeId(s){
 }
 const _MODEL_ID=_storageSafeId(document.documentElement.dataset.modelId||document.title+'_'+location.pathname);
 const _STORAGE_KEY='fm_model_state_'+_MODEL_ID;
-let _DRAFT_D=null, _DRAFT_DEFAULTS_S=null;  // 초안 스냅샷 (리셋용)
+let _DRAFT_MODEL=null, _DRAFT_MODELEFAULTS_S=null;  // 초안 스냅샷 (리셋용)
 let _SOURCE_SIGNATURE=null;
 let _saveTimer=null;
 
-// D 직렬화 (캐시 필드 제외)
-function _serializeD(){
+// MODEL 직렬화 (캐시 필드 제외)
+function _serializeModel(){
   let out={};
-  for(let k in D){
-    let d=D[k];
+  for(let k in MODEL){
+    let d=MODEL[k];
     out[k]={
       label:d.label, sub:d.sub, parent:d.parent, type:d.type, formula:d.formula,
       v:d.v?d.v.slice():null, u:d.u, desc:d.desc, c:d.c, pct:d.pct,
@@ -1915,10 +1915,10 @@ function _serializeD(){
 }
 
 function snapshotDraft(){
-  _DRAFT_D=_serializeD();
-  _DRAFT_DEFAULTS_S={};
-  for(let k in DEFAULTS_S) _DRAFT_DEFAULTS_S[k]=DEFAULTS_S[k].slice();
-  _SOURCE_SIGNATURE=_hashString(_stableJson({D:_DRAFT_D,DEFAULTS_S:_DRAFT_DEFAULTS_S,YRS:YRS}));
+  _DRAFT_MODEL=_serializeModel();
+  _DRAFT_MODELEFAULTS_S={};
+  for(let k in DEFAULTS_S) _DRAFT_MODELEFAULTS_S[k]=DEFAULTS_S[k].slice();
+  _SOURCE_SIGNATURE=_hashString(_stableJson({MODEL:_DRAFT_MODEL,DEFAULTS_S:_DRAFT_MODELEFAULTS_S,YRS:YRS}));
 }
 
 function saveToStorage(){
@@ -1932,7 +1932,7 @@ function _doSave(){
     for(let k in SV) svObj[k]=SV[k].slice();
     let defObj={};
     for(let k in DEFAULTS_S) defObj[k]=DEFAULTS_S[k].slice();
-    let payload={version:2, modelId:_MODEL_ID, sourceSignature:_SOURCE_SIGNATURE, D:_serializeD(), SV:svObj, DEFAULTS_S:defObj};
+    let payload={version:2, modelId:_MODEL_ID, sourceSignature:_SOURCE_SIGNATURE, MODEL:_serializeModel(), SV:svObj, DEFAULTS_S:defObj};
     localStorage.setItem(_STORAGE_KEY, JSON.stringify(payload));
   } catch(e){ console.warn('Storage save 실패:',e); }
 }
@@ -1942,10 +1942,10 @@ function loadFromStorage(){
     let s=localStorage.getItem(_STORAGE_KEY);
     if(!s) return false;
     let p=JSON.parse(s);
-    if(!p || p.version!==2 || p.modelId!==_MODEL_ID || p.sourceSignature!==_SOURCE_SIGNATURE || !p.D) return false;
-    // D 교체
-    for(let k in D) delete D[k];
-    Object.assign(D, p.D);
+    if(!p || p.version!==2 || p.modelId!==_MODEL_ID || p.sourceSignature!==_SOURCE_SIGNATURE || !p.MODEL) return false;
+    // MODEL 교체
+    for(let k in MODEL) delete MODEL[k];
+    Object.assign(MODEL, p.MODEL);
     // SV / DEFAULTS_S 교체
     if(p.SV){ for(let k in SV) delete SV[k]; Object.assign(SV, p.SV); }
     if(p.DEFAULTS_S){ for(let k in DEFAULTS_S) delete DEFAULTS_S[k]; Object.assign(DEFAULTS_S, p.DEFAULTS_S); }
@@ -1954,14 +1954,14 @@ function loadFromStorage(){
 }
 
 function resetToDraft(){
-  if(!_DRAFT_D) return;
+  if(!_DRAFT_MODEL) return;
   if(!confirm('초안 상태로 리셋합니다.\n모든 편집·시뮬레이션 변경이 사라집니다. 계속?')) return;
-  // D 복원
-  for(let k in D) delete D[k];
-  for(let k in _DRAFT_D) D[k]=JSON.parse(JSON.stringify(_DRAFT_D[k]));
+  // MODEL 복원
+  for(let k in MODEL) delete MODEL[k];
+  for(let k in _DRAFT_MODEL) MODEL[k]=JSON.parse(JSON.stringify(_DRAFT_MODEL[k]));
   // DEFAULTS_S / SV 복원
   for(let k in DEFAULTS_S) delete DEFAULTS_S[k];
-  for(let k in _DRAFT_DEFAULTS_S) DEFAULTS_S[k]=_DRAFT_DEFAULTS_S[k].slice();
+  for(let k in _DRAFT_MODELEFAULTS_S) DEFAULTS_S[k]=_DRAFT_MODELEFAULTS_S[k].slice();
   for(let k in SV) delete SV[k];
   for(let k in DEFAULTS_S) SV[k]=DEFAULTS_S[k].slice();
   // 케이스 클리어
@@ -2016,10 +2016,10 @@ let SV={},SR={};for(let k in DEFAULTS_S)SV[k]=DEFAULTS_S[k].slice();
 // 수식 엔진 (Full 모드 — 동적 노드 편집)
 //
 // 흐름:
-//   1) D[k].formula 문자열 → tokenize → parse → AST (캐시)
+//   1) MODEL[k].formula 문자열 → tokenize → parse → AST (캐시)
 //   2) AST에서 의존 변수 추출 (캐시)
 //   3) 토폴로지 정렬로 평가 순서 결정 (순환참조 검출)
-//   4) 순서대로 evalAst → D[k].v 갱신
+//   4) 순서대로 evalAst → MODEL[k].v 갱신
 //
 // 수식 문법:
 //   산술:       + - * /  (괄호 지원)
@@ -2196,13 +2196,13 @@ function topoSort(){
       throw new Error('순환 참조: '+[...path,k].join(' → '));
     }
     visiting.add(k);
-    let d=D[k];
+    let d=MODEL[k];
     if(d && d.type==='computed' && d.formula){
       try{
         if(!d._ast) d._ast=parseFormula(d.formula);
         if(!d._deps) d._deps=extractDeps(d._ast);
         for(let dep of d._deps){
-          if(D[dep]) visit(dep, [...path, k]);
+          if(MODEL[dep]) visit(dep, [...path, k]);
         }
         d._error=null;
       } catch(e){
@@ -2213,8 +2213,8 @@ function topoSort(){
     visited.add(k);
     order.push(k);
   }
-  for(let k in D){
-    try{ visit(k, []); } catch(e){ if(D[k]) D[k]._error=e.message; }
+  for(let k in MODEL){
+    try{ visit(k, []); } catch(e){ if(MODEL[k]) MODEL[k]._error=e.message; }
   }
   return order;
 }
@@ -2223,20 +2223,20 @@ function topoSort(){
 function simCalc(){
   let order=graphDeps().order;   // 구조가 안 바뀌면 위상정렬을 다시 돌리지 않는다
   let env={};
-  // 입력값: SV → env, D.v
-  for(let k in D){
-    if(D[k].type==='input'){
-      let v=(SV[k]||D[k].v||[]).slice();
+  // 입력값: SV → env, MODEL.v
+  for(let k in MODEL){
+    if(MODEL[k].type==='input'){
+      let v=(SV[k]||MODEL[k].v||[]).slice();
       // YRS 길이에 맞추기
       while(v.length<YRS.length) v.push(0);
       v.length=YRS.length;
       env[k]=v;
-      D[k].v=v;
+      MODEL[k].v=v;
     }
   }
   // 평가 순서대로 computed 노드 계산
   for(let k of order){
-    let d=D[k];
+    let d=MODEL[k];
     if(!d||d.type!=='computed') continue;
     if(!d._ast){
       // 파싱 실패 — 이전 값 유지
@@ -2256,11 +2256,11 @@ function simCalc(){
   if(typeof saveToStorage==='function') saveToStorage();
 }
 
-// 캐시 무효화 — formula·D 구조 변경 시 호출
+// 캐시 무효화 — formula·MODEL 구조 변경 시 호출
 function clearFormulaCache(){
-  for(let k in D){
-    delete D[k]._ast;
-    delete D[k]._deps;
+  for(let k in MODEL){
+    delete MODEL[k]._ast;
+    delete MODEL[k]._deps;
   }
 }
 
@@ -2268,7 +2268,7 @@ function clearFormulaCache(){
 // 엑셀 다운로드 — 수식 그대로 박힌 .xlsx 생성 (SheetJS 사용)
 //
 // 레이아웃:
-//   A: Variable ID  |  B: Label  |  C: Unit  |  D..: 연도별 값/수식
+//   A: Variable ID  |  B: Label  |  C: Unit  |  MODEL..: 연도별 값/수식
 //   - input 노드: 값 리터럴
 //   - computed 노드: Excel formula (변수 참조 = 해당 변수 행의 같은 연도 열)
 // ============================================================
@@ -2283,7 +2283,7 @@ function astToExcel(ast, year, rowMap){
   function _ref(name, yr){
     let row=rowMap[name];
     if(!row) throw new Error('미정의 변수: '+name);
-    return _colLetter(3+yr)+row;  // D=0, E=1, ...
+    return _colLetter(3+yr)+row;  // MODEL=0, E=1, ...
   }
   switch(ast.kind){
     case 'num': return String(ast.val);
@@ -2336,7 +2336,7 @@ function exportToJSON(){
     version: 1,
     YRS: YRS.slice(),
     HIST_N: HIST_N,
-    D: _serializeD(),
+    MODEL: _serializeModel(),
     SV: Object.fromEntries(Object.entries(SV).map(([k,v])=>[k,v.slice()])),
   };
   let blob=new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
@@ -2398,10 +2398,10 @@ function _excelSheetRef(name){
 function _excelDescendants(root){
   let out=[];
   function walk(k){
-    if(!D[k]) return;
+    if(!MODEL[k]) return;
     out.push(k);
-    Object.keys(D).forEach(child=>{
-      if(D[child]&&D[child].parent===k) walk(child);
+    Object.keys(MODEL).forEach(child=>{
+      if(MODEL[child]&&MODEL[child].parent===k) walk(child);
     });
   }
   walk(root);
@@ -2414,34 +2414,34 @@ function _excelOrderedExisting(order, ids){
 }
 
 function _excelIsKcarModel(){
-  return ['ecommerce_sales','branch_sales','used_car_volume','fcff','value_per_share'].every(k=>D[k]);
+  return ['ecommerce_sales','branch_sales','used_car_volume','fcff','value_per_share'].every(k=>MODEL[k]);
 }
 
 function _excelKcarSheets(order){
-  let sales=D.rev?_excelDescendants('rev'):[];
-  let costAll=D.total_cost?_excelDescendants('total_cost'):[];
-  let labor=D.labor_cost?_excelDescendants('labor_cost'):[];
+  let sales=MODEL.rev?_excelDescendants('rev'):[];
+  let costAll=MODEL.total_cost?_excelDescendants('total_cost'):[];
+  let labor=MODEL.labor_cost?_excelDescendants('labor_cost'):[];
   let excludedCost=new Set([...labor,'da']);
   let cost=costAll.filter(k=>!excludedCost.has(k));
-  let capexDa=['capex','da'].filter(k=>D[k]);
-  let nwc=['rev','nwc_rate','nwc','change_nwc'].filter(k=>D[k]);
+  let capexDa=['capex','da'].filter(k=>MODEL[k]);
+  let nwc=['rev','nwc_rate','nwc','change_nwc'].filter(k=>MODEL[k]);
   let dcf=[
     'rev','total_cost','op_profit','tax_rate','tax','ebiat','da','capex',
     'nwc','change_nwc','fcff','wacc','terminal_growth','discount_factor',
     'pv_fcff','terminal_value','pv_terminal_value','enterprise_value',
     'net_debt','equity_value','shares_outstanding','value_per_share'
-  ].filter(k=>D[k]);
-  let bs=['net_debt','shares_outstanding','equity_value','value_per_share'].filter(k=>D[k]);
+  ].filter(k=>MODEL[k]);
+  let bs=['net_debt','shares_outstanding','equity_value','value_per_share'].filter(k=>MODEL[k]);
   let bridge=[
     'rev','used_car_sales','ecommerce_sales','branch_sales','auction_sales',
     'rental_sales','service_other_sales','used_car_volume'
-  ].filter(k=>D[k]);
+  ].filter(k=>MODEL[k]);
   return {
     'DCF':_excelOrderedExisting(order,dcf),
     'Sales':_excelOrderedExisting(order,sales),
     'Sales Bridge':_excelOrderedExisting(order,bridge),
     'Cost':_excelOrderedExisting(order,cost),
-    'CapEx,D&A':_excelOrderedExisting(order,capexDa),
+    'CapEx,MODEL&A':_excelOrderedExisting(order,capexDa),
     'Labor':_excelOrderedExisting(order,labor),
     'NWC':_excelOrderedExisting(order,nwc),
     'BS':_excelOrderedExisting(order,bs),
@@ -2456,14 +2456,14 @@ function _excelSafeSheetName(name, fallback){
 
 function _excelGenericSheets(order){
   let groups={};
-  let roots=Object.keys(D).filter(k=>D[k]&&D[k].parent===null);
+  let roots=Object.keys(MODEL).filter(k=>MODEL[k]&&MODEL[k].parent===null);
   let top=[];
   roots.forEach(root=>{
-    Object.keys(D).forEach(k=>{ if(D[k]&&D[k].parent===root) top.push(k); });
+    Object.keys(MODEL).forEach(k=>{ if(MODEL[k]&&MODEL[k].parent===root) top.push(k); });
   });
   if(!top.length) top=roots;
   top.forEach(k=>{
-    let label=D[k]&&D[k].label?D[k].label:k;
+    let label=MODEL[k]&&MODEL[k].label?MODEL[k].label:k;
     let sheet=_excelSafeSheetName(label,k);
     let base=sheet, n=2;
     while(groups[sheet]) sheet=_excelSafeSheetName(base.slice(0,27)+' '+n++,base);
@@ -2481,13 +2481,13 @@ function _excelImportantOutputs(order){
     'root','rev','used_car_sales','ecommerce_sales','branch_sales','total_cost',
     'op_profit','fcff','enterprise_value','equity_value','value_per_share'
   ];
-  let out=preferred.filter(k=>D[k]);
-  Object.keys(D).forEach(k=>{
-    if(D[k]&&(D[k].parent==null||D[k].parent==='root')&&!out.includes(k)) out.push(k);
+  let out=preferred.filter(k=>MODEL[k]);
+  Object.keys(MODEL).forEach(k=>{
+    if(MODEL[k]&&(MODEL[k].parent==null||MODEL[k].parent==='root')&&!out.includes(k)) out.push(k);
   });
   for(let k of order){
     if(out.length>=24) break;
-    if(D[k]&&D[k].type==='computed'&&!out.includes(k)) out.push(k);
+    if(MODEL[k]&&MODEL[k].type==='computed'&&!out.includes(k)) out.push(k);
   }
   return out;
 }
@@ -2495,14 +2495,14 @@ function _excelImportantOutputs(order){
 function _excelTreeOrder(){
   let out=[], seen=new Set();
   function walk(k){
-    if(!D[k]||seen.has(k)) return;
+    if(!MODEL[k]||seen.has(k)) return;
     seen.add(k); out.push(k);
-    Object.keys(D).forEach(child=>{
-      if(D[child]&&D[child].parent===k) walk(child);
+    Object.keys(MODEL).forEach(child=>{
+      if(MODEL[child]&&MODEL[child].parent===k) walk(child);
     });
   }
-  Object.keys(D).forEach(k=>{ if(!D[k].parent) walk(k); });
-  Object.keys(D).forEach(walk);
+  Object.keys(MODEL).forEach(k=>{ if(!MODEL[k].parent) walk(k); });
+  Object.keys(MODEL).forEach(walk);
   return out;
 }
 
@@ -2510,11 +2510,11 @@ function _excelLevels(){
   let memo={};
   function lvl(k){
     if(memo[k]!=null) return memo[k];
-    let p=D[k]&&D[k].parent;
-    memo[k]=(!p||!D[p])?0:lvl(p)+1;
+    let p=MODEL[k]&&MODEL[k].parent;
+    memo[k]=(!p||!MODEL[p])?0:lvl(p)+1;
     return memo[k];
   }
-  Object.keys(D).forEach(lvl);
+  Object.keys(MODEL).forEach(lvl);
   return memo;
 }
 
@@ -2747,7 +2747,7 @@ function _excelWriteNodeSheet(wb,name,nodeIds,levels,modelRowMap,inputRowMap,aud
   let formulaCount=0;
   let linkCount=0;
   nodeIds.forEach(k=>{
-    let d=D[k]; if(!d) return;
+    let d=MODEL[k]; if(!d) return;
     let row=localRowMap[k];
     let isSection=d.type==='computed'&&((levels[k]||0)<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
     // 라벨은 항상 넓은 EXCEL_LABEL_COL(F)에 쓰고, 계층은 Excel 들여쓰기로 표현한다.
@@ -2777,7 +2777,7 @@ function _excelWriteNodeSheet(wb,name,nodeIds,levels,modelRowMap,inputRowMap,aud
   });
   _excelApplyHorizontalBorders(ws,EXCEL_DATA_START_ROW+1,EXCEL_DATA_START_ROW+nodeIds.length,EXCEL_DATA_START_COL+YRS.length);
   nodeIds.forEach(k=>{
-    let d=D[k]; if(!d) return;
+    let d=MODEL[k]; if(!d) return;
     let level=levels[k]||0;
     let isSection=d.type==='computed'&&(level<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
     if(isSection) _excelStyleRow(ws,localRowMap[k],2,EXCEL_DATA_START_COL+YRS.length,k==='root'||k==='fcff'||k==='valuation'?EXCEL_STYLE.totalBorder:EXCEL_STYLE.subtotalBorder);
@@ -2854,7 +2854,7 @@ function _downloadFormulaXmlWorkbook(order,rowMap,formulaRows,base,ts){
   let rows=[];
   rows.push('<Row>'+['Variable','Label','Unit',...YRS].map(h=>'<Cell><Data ss:Type="String">'+_xmlEsc(h)+'</Data></Cell>').join('')+'</Row>');
   for(let k of order){
-    let d=D[k]; if(!d) continue;
+    let d=MODEL[k]; if(!d) continue;
     let cells=[k,d.label||k,d.u||''].map(v=>'<Cell><Data ss:Type="String">'+_xmlEsc(v)+'</Data></Cell>');
     if(d.type==='input'){
       for(let i=0;i<YRS.length;i++) cells.push('<Cell><Data ss:Type="Number">'+((d.v&&d.v[i]!=null)?d.v[i]:0)+'</Data></Cell>');
@@ -2906,7 +2906,7 @@ async function exportToExcel(){
   let levels=_excelLevels();
   let modelRowMap={};
   order.forEach((k,i)=>{ modelRowMap[k]=EXCEL_DATA_START_ROW+1+i; });
-  let inputOrder=order.filter(k=>D[k]&&D[k].type==='input');
+  let inputOrder=order.filter(k=>MODEL[k]&&MODEL[k].type==='input');
   let inputRowMap={};
   inputOrder.forEach((k,i)=>{ inputRowMap[k]=EXCEL_DATA_START_ROW+1+i; });
 
@@ -2917,7 +2917,7 @@ async function exportToExcel(){
     let formulaRows=[];
     let errors=[];
     for(let k of calcOrder){
-      let d=D[k]; if(!d||d.type!=='computed') continue;
+      let d=MODEL[k]; if(!d||d.type!=='computed') continue;
       if(!d.formula){ errors.push(k+': 계산 노드에 formula 없음'); continue; }
       let ast;
       try{ ast=parseFormula(d.formula); }catch(e){ errors.push(k+': 수식 파싱 실패 — '+e.message); continue; }
@@ -2954,7 +2954,7 @@ async function exportToExcel(){
     'Sales':'채널별·차급별 Q × P 매출 모델',
     'Sales Bridge':'매출 구성과 주요 드라이버 브릿지',
     'Cost':'재고자산원가, 보증비, 렌터카 원가, 판관비',
-    'CapEx,D&A':'투자와 감가상각비',
+    'CapEx,MODEL&A':'투자와 감가상각비',
     'Labor':'필요 인원과 평균급여 기반 인건비',
     'NWC':'매출/비용 연동 운전자본과 △NWC',
     'BS':'순차입금, 주식수, 주주가치 연결',
@@ -2964,7 +2964,7 @@ async function exportToExcel(){
   });
   indexRows.push(
     ['Assumptions','모든 하드코딩 입력값 집중 시트'],
-    ['Model','HTML D 그래프 전체 계산 엔진'],
+    ['Model','HTML MODEL 그래프 전체 계산 엔진'],
     ['Formula Audit','생성된 모든 수식 셀 감사'],
     ['Structure','노드 ID, parent, formula, description'],
     ['Checks','수식/구조/정합성 검증'],
@@ -2981,7 +2981,7 @@ async function exportToExcel(){
   // 예전엔 여기서 B4/C4에 'Output'/'ID'를 또 써서 헤더가 두 벌로 겹쳤다.
   let controlNodes=_excelImportantOutputs(order);
   controlNodes.forEach((k,i)=>{
-    let d=D[k], row=EXCEL_DATA_START_ROW+1+i;
+    let d=MODEL[k], row=EXCEL_DATA_START_ROW+1+i;
     _excelSetValue(wsControl,row,EXCEL_LABEL_COL,d.label||k,null,
       k==='root'?EXCEL_STYLE.labelBold:EXCEL_STYLE.label);
     _excelSetValue(wsControl,row,EXCEL_ID_COL,k,null,EXCEL_STYLE.id);
@@ -3011,7 +3011,7 @@ async function exportToExcel(){
   let wsAssump=_excelMakeSheet();
   _excelWriteHeaders(wsAssump,'Assumptions');
   inputOrder.forEach(k=>{
-    let d=D[k], row=inputRowMap[k];
+    let d=MODEL[k], row=inputRowMap[k];
     _excelSetValue(wsAssump,row,EXCEL_LABEL_COL,d.label||k,null,
       _excelIndentStyle(EXCEL_STYLE.label,levels[k]||0));
     _excelSetValue(wsAssump,row,EXCEL_ID_COL,k,null,EXCEL_STYLE.id);
@@ -3026,7 +3026,7 @@ async function exportToExcel(){
   _excelWriteHeaders(ws,'Model');
 
   for(let k of order){
-    let d=D[k]; if(!d) continue;
+    let d=MODEL[k]; if(!d) continue;
     let row=modelRowMap[k];
     let isSection=d.type==='computed'&&((levels[k]||0)<=1||['root','rev','total_cost','fcff','valuation'].includes(k));
     _excelSetValue(ws,row,EXCEL_LABEL_COL,d.label||k,null,
@@ -3077,7 +3077,7 @@ async function exportToExcel(){
 
   _excelApplyHorizontalBorders(ws,EXCEL_DATA_START_ROW+1,EXCEL_DATA_START_ROW+order.length,EXCEL_DATA_START_COL+YRS.length);
   for(let k of order){
-    let d=D[k]; if(!d) continue;
+    let d=MODEL[k]; if(!d) continue;
     let level=levels[k]||0;
     let isSection=d.type==='computed'&&(level<=1||k==='root');
     if(isSection) _excelStyleRow(ws,modelRowMap[k],2,EXCEL_DATA_START_COL+YRS.length,k==='root'?EXCEL_STYLE.totalBorder:EXCEL_STYLE.subtotalBorder);
@@ -3087,7 +3087,7 @@ async function exportToExcel(){
 
   let structureRows=[];
   order.forEach(k=>{
-    let d=D[k]; if(!d) return;
+    let d=MODEL[k]; if(!d) return;
     structureRows.push([k,d.label||'',d.parent||'',levels[k]||0,d.type||'',d.formula||'',d.u||'',d.desc||'']);
   });
   _excelWriteTableSheet(wb,'Structure',['ID','Label','Parent','Level','Type','Formula','Unit','Description'],structureRows,[24,30,24,8,12,60,10,70]);
@@ -3098,11 +3098,11 @@ async function exportToExcel(){
     ['Formula cells generated',formulaCells+linkCells,formulaCells>0?'OK':'FAIL'],
     ['Input links generated',linkCells,linkCells>=inputOrder.length*YRS.length?'OK':'FAIL'],
     ['Operating sheets generated',Object.keys(moduleSheets).filter(s=>moduleSheets[s].length).join(', ')||'Generic model only','OK'],
-    ['Computed nodes',order.filter(k=>D[k]&&D[k].type==='computed').length,'OK'],
-    ['Input nodes',order.filter(k=>D[k]&&D[k].type==='input').length,'OK'],
+    ['Computed nodes',order.filter(k=>MODEL[k]&&MODEL[k].type==='computed').length,'OK'],
+    ['Input nodes',order.filter(k=>MODEL[k]&&MODEL[k].type==='input').length,'OK'],
     ['All computed formulas parsed','OK','OK'],
     ['All inputs centralized in Assumptions','OK','OK'],
-    ['HTML nodes in Structure',order.length,order.length===Object.keys(D).length?'OK':'FAIL'],
+    ['HTML nodes in Structure',order.length,order.length===Object.keys(MODEL).length?'OK':'FAIL'],
   ];
   _excelWriteTableSheet(wb,'Checks',['Check','Result','Status'],checkRows,[42,24,14]);
 
@@ -3112,7 +3112,7 @@ async function exportToExcel(){
     ['Title',document.title||'Financial Model'],
     ['Nodes',order.length],
     ['Input nodes',[...INPUT_KEYS].length],
-    ['Computed nodes',order.filter(k=>D[k]&&D[k].type==='computed').length],
+    ['Computed nodes',order.filter(k=>MODEL[k]&&MODEL[k].type==='computed').length],
     ['Formula cells',formulaCells+linkCells],
     ['Input link cells',linkCells],
     ['Years',YRS[0]+'–'+YRS[YRS.length-1]+' ('+YRS.length+'개)'],
@@ -3122,7 +3122,7 @@ async function exportToExcel(){
   ];
   _excelWriteTableSheet(wb,'Metadata',['Key','Value'],metaRows,[24,90]);
 
-  let preferred=['Index','Control','DCF','Sales','Sales Bridge','Cost','CapEx,D&A','Labor','NWC','BS','Assumptions','Model','Formula Audit','Structure','Checks','Metadata'];
+  let preferred=['Index','Control','DCF','Sales','Sales Bridge','Cost','CapEx,MODEL&A','Labor','NWC','BS','Assumptions','Model','Formula Audit','Structure','Checks','Metadata'];
   wb.SheetNames=[...preferred.filter(s=>wb.SheetNames.includes(s)),...wb.SheetNames.filter(s=>!preferred.includes(s))];
   await _excelDownloadWorkbook(wb,base+'_'+ts+'.xlsx');
 }
@@ -3136,15 +3136,15 @@ if(loadFromStorage()){
 simCalc();
 
 // ============================================================
-// SIM_SECS — 시뮬레이터 슬라이더 정의 (D에서 자동 생성)
+// SIM_SECS — 시뮬레이터 슬라이더 정의 (MODEL에서 자동 생성)
 //
 // 입력 노드(type='input')를 부모(parent)별로 그룹핑하여 섹션 구성.
-// min/max/step은 현재값과 단위에서 자동 추정 (필요시 D[k].sliderMin/Max/Step 명시).
+// min/max/step은 현재값과 단위에서 자동 추정 (필요시 MODEL[k].sliderMin/Max/Step 명시).
 // ============================================================
 function buildSimSecs(){
   let byParent={};
   for(let k of INPUT_KEYS){
-    let d=D[k]; if(!d) continue;
+    let d=MODEL[k]; if(!d) continue;
     let p=d.parent||'_orphan';
     (byParent[p]=byParent[p]||[]).push(k);
   }
@@ -3152,7 +3152,7 @@ function buildSimSecs(){
   // root → leaves 순서로 부모 정렬
   let order=[];
   function walk(id){
-    let kids=Object.keys(D).filter(k=>D[k].parent===id);
+    let kids=Object.keys(MODEL).filter(k=>MODEL[k].parent===id);
     if(byParent[id]) order.push(id);
     kids.forEach(walk);
   }
@@ -3160,13 +3160,13 @@ function buildSimSecs(){
   if(byParent['_orphan']) order.push('_orphan');
 
   for(let pid of order){
-    let p=D[pid]||{};
+    let p=MODEL[pid]||{};
     let inputs=byParent[pid];
     secs.push({
       t:(p.label||pid)+' 드라이버',
       c:p.bg||p.c||'#5D68F7',
       v:inputs.map(k=>{
-        let d=D[k];
+        let d=MODEL[k];
         // 사용자 명시값 우선, 없으면 자동 추정
         let cur=d.v && d.v.length ? Math.max(...d.v.map(Math.abs)) : 1;
         let min, max, step, pct;
@@ -3447,7 +3447,7 @@ function _resetSim(){_activeCase=null;for(let k in DEFAULTS_S)SV[k]=DEFAULTS_S[k
 // APP SHELL — 사이드바 트래킹 + 계정별 문서 뷰
 //
 // 캔버스(트리)는 전체 조망, 사이드바는 요소별 트래킹, 문서 뷰는 계정 단위 상세.
-// 엔진(D / SV / simCalc / renderAll)은 그대로 쓰고 읽기만 한다.
+// 엔진(MODEL / SV / simCalc / renderAll)은 그대로 쓰고 읽기만 한다.
 // 색상은 전부 design-guide/tokens.js 토큰. 임의 hex 없음.
 // ============================================================
 
@@ -3513,7 +3513,7 @@ function childrenOf(id){
   return c ? c.slice() : [];
 }
 function rootId(){
-  return (GRAPH && GRAPH.root) || Object.keys(D)[0];
+  return (GRAPH && GRAPH.root) || Object.keys(MODEL)[0];
 }
 function depthOf(id){
   return (GRAPH && GRAPH.depth[id]) || 0;
@@ -3523,29 +3523,29 @@ function pathOf(id){
   return p ? p.slice() : [];
 }
 // 형제 순서로 결정적 배정 — 같은 차트에 함께 그려지는 노드끼리 항상 구분된다.
-// (D[k].c는 캔버스 엔진 전용. 여기서 쓰지 않는 이유는 형제 간 중복이 잦아서.)
+// (MODEL[k].c는 캔버스 엔진 전용. 여기서 쓰지 않는 이유는 형제 간 중복이 잦아서.)
 function isCostish(id){
-  var d = D[id] || {};
+  var d = MODEL[id] || {};
   if(d.role === 'cost') return true;
   var cur = id, guard = 0;
-  while(D[cur] && guard++ < 60){
-    if(/cost|expense|비용|원가|판관비/i.test(cur + ' ' + (D[cur].label || ''))) return true;
-    cur = D[cur].parent;
+  while(MODEL[cur] && guard++ < 60){
+    if(/cost|expense|비용|원가|판관비/i.test(cur + ' ' + (MODEL[cur].label || ''))) return true;
+    cur = MODEL[cur].parent;
   }
   return false;
 }
 function nodeColor(id){
-  var d = D[id]; if(!d) return T.mut;
+  var d = MODEL[id]; if(!d) return T.mut;
   var ramp = isCostish(id) ? RAMP_COST : RAMP_REV;
   var sib = childrenOf(d.parent), i = Math.max(0, sib.indexOf(id));
   return ramp[i % ramp.length];
 }
 function val(id, t){
-  var d = D[id]; if(!d || !d.v) return 0;
+  var d = MODEL[id]; if(!d || !d.v) return 0;
   var x = d.v[t]; return (typeof x === 'number' && isFinite(x)) ? x : 0;
 }
 function fmtV(id, t){
-  var d = D[id] || {};
+  var d = MODEL[id] || {};
   return fmtSmart(val(id, t), d.pct);
 }
 function cagr(id, from, to){
@@ -3560,12 +3560,12 @@ function pctText(x, digits){
 function isHist(t){ return t < HIST_N; }
 function nInputs(){ var c = 0; INPUT_KEYS.forEach(function(){ c++; }); return c; }
 // desc 앞머리의 [주관]/[계산·교차참조] 같은 분류 태그는 화면에 노출하지 않는다.
-// 원문(D[k].desc)은 그대로 두고 렌더 직전에만 벗긴다.
+// 원문(MODEL[k].desc)은 그대로 두고 렌더 직전에만 벗긴다.
 function descBody(desc){
   return String(desc || '').replace(/^\s*\[[^\]]*\]\s*/, '').trim();
 }
 function typeBadge(id){
-  var d = D[id] || {};
+  var d = MODEL[id] || {};
   if(d.type === 'input') return '<span class="badge input">가정변수 · 입력</span>';
   return '<span class="badge calc">계산</span>';
 }
@@ -3689,7 +3689,7 @@ function buildSidebar(){
   var rows = '', total = 0;
   function walk(id, level){
     total++;
-    var d = D[id], kids = childrenOf(id), isInput = d.type === 'input';
+    var d = MODEL[id], kids = childrenOf(id), isInput = d.type === 'input';
     var open = openSet.has(id);
     var col = nodeColor(id);
     rows += '<div class="tree-item' + (UI.view === id ? ' active' : '') + (isInput ? ' is-input' : '') +
@@ -3741,18 +3741,18 @@ function go(view){
   var isCanvas = (view === 'canvas');
   document.getElementById('treePanel').classList.toggle('hidden', !isCanvas);
   document.getElementById('docView').classList.toggle('show', !isCanvas);
-  var title = VIEW_TITLES[view] || (D[view] ? (D[view].label || view) : view);
-  var path = D[view] ? pathOf(view).slice(0, -1).map(function(k){ return D[k].label || k; }).join(' / ') : 'Model';
+  var title = VIEW_TITLES[view] || (MODEL[view] ? (MODEL[view].label || view) : view);
+  var path = MODEL[view] ? pathOf(view).slice(0, -1).map(function(k){ return MODEL[k].label || k; }).join(' / ') : 'Model';
   document.getElementById('crumbTitle').textContent = title;
   document.getElementById('crumbPath').textContent = path || 'Model';
   if(isCanvas){
-    if(D[UI.lastNode]) { selectedId = UI.lastNode; if(typeof updateSelectedToolbar === 'function') updateSelectedToolbar(); }
+    if(MODEL[UI.lastNode]) { selectedId = UI.lastNode; if(typeof updateSelectedToolbar === 'function') updateSelectedToolbar(); }
     setTimeout(function(){
       resize();
       if(!isFinite(cam.s) || !isFinite(cam.x)) fitAll(); else renderAll();
     }, 0);
   } else {
-    if(D[view]){
+    if(MODEL[view]){
       UI.lastNode = view;
       // 사이드바에서 해당 노드가 보이도록 상위를 펼친다 (캔버스 openSet과 공유)
       pathOf(view).slice(0, -1).forEach(function(k){ openSet.add(k); });
@@ -3808,7 +3808,7 @@ function centerNode(id){
   if(zl) zl.textContent = Math.round(cam.s * 100) + '%';
   renderAll();
 }
-function openSelectedPage(){ if(selectedId && D[selectedId]) go(selectedId); }
+function openSelectedPage(){ if(selectedId && MODEL[selectedId]) go(selectedId); }
 
 // ─── 값이 바뀔 때마다 모든 표면을 다시 그린다 ────────────────
 // 시뮬레이터 슬라이더·케이스 전환·직접 입력·노드 편집은 전부 simCalc()을 거치므로
@@ -3852,7 +3852,7 @@ function renderView(view){
   if(view === 'assumptions') return renderAssumPage();
   if(view === 'pl') return renderPLPage();
   if(view === 'checks') return renderChecksPage();
-  if(D[view]) return renderAccount(view);
+  if(MODEL[view]) return renderAccount(view);
   return '<div class="page"><div class="notice">알 수 없는 뷰: ' + esc(view) + '</div></div>';
 }
 
@@ -3877,7 +3877,7 @@ function yearTh(first){
 }
 // 노드 1행
 function nodeTr(id, level, cls){
-  var d = D[id], isInput = d.type === 'input';
+  var d = MODEL[id], isInput = d.type === 'input';
   var h = '<tr class="' + (cls || (isInput ? 'drv' : '')) + '"><td><span class="cellrow">' +
     '<span class="lvl" style="width:' + (level * 12) + 'px"></span>' +
     (isInput ? '<i class="mark-input"></i>' : '<i class="legend-dot" style="background:' + nodeColor(id) + '"></i>') +
@@ -3891,12 +3891,12 @@ function nodeTr(id, level, cls){
 
 // ── 계정 상세 페이지 ──
 function renderAccount(id){
-  var d = D[id], t = UI.year, kids = childrenOf(id), isInput = d.type === 'input';
+  var d = MODEL[id], t = UI.year, kids = childrenOf(id), isInput = d.type === 'input';
   var h = '<div class="page">';
 
   // head
   var crumbs = pathOf(id).slice(0, -1).map(function(k){
-    return '<a data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</a>';
+    return '<a data-go="' + esc(k) + '">' + esc(MODEL[k].label || k) + '</a>';
   }).join(' ' + ic('chevron-right', 16) + ' ');
   h += '<div class="page-head"><div class="eyebrow">' + (crumbs || 'ROOT') + '</div>' +
     '<h1>' + esc(d.label || id) + '</h1>' +
@@ -3919,7 +3919,7 @@ function renderAccount(id){
   // 차트 + 근거
   var series;
   if(kids.length){
-    series = kids.map(function(k){ return { label:D[k].label || k, color:nodeColor(k), values:D[k].v || [] }; });
+    series = kids.map(function(k){ return { label:MODEL[k].label || k, color:nodeColor(k), values:MODEL[k].v || [] }; });
   } else {
     series = [{ label:d.label || id, color:nodeColor(id), values:d.v || [] }];
   }
@@ -3935,7 +3935,7 @@ function renderAccount(id){
     '</p></div>' +
     (d.formula ? '<div class="callout"><b>계산식</b><p class="mono">' + esc(d.formula) + '</p></div>' : '') +
     (kids.length ? '<div class="callout"><b>하위 요소 ' + kids.length + '개</b><p>' +
-      kids.map(function(k){ return '<button class="rowlink" data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</button>'; }).join(' · ') +
+      kids.map(function(k){ return '<button class="rowlink" data-go="' + esc(k) + '">' + esc(MODEL[k].label || k) + '</button>'; }).join(' · ') +
       '</p></div>' : '') +
     '</div>');
   h += '</div>';
@@ -3948,9 +3948,9 @@ function renderAccount(id){
       var kv = val(k, t);
       var sh = parV !== 0 ? kv / parV : 0;
       rows += '<tr><td><span class="cellrow">' +
-        (D[k].type === 'input' ? '<i class="mark-input"></i>' : '<i class="legend-dot" style="background:' + nodeColor(k) + '"></i>') +
-        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</button>' +
-        '<span style="color:' + T.mut + ';font-size:9px">' + esc(D[k].u || '') + '</span></span></td>';
+        (MODEL[k].type === 'input' ? '<i class="mark-input"></i>' : '<i class="legend-dot" style="background:' + nodeColor(k) + '"></i>') +
+        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(MODEL[k].label || k) + '</button>' +
+        '<span style="color:' + T.mut + ';font-size:9px">' + esc(MODEL[k].u || '') + '</span></span></td>';
       for(var tt = 0; tt < YRS.length; tt++){
         rows += '<td class="' + (isHist(tt) ? 'hist' : '') + '">' + esc(fmtV(k, tt)) + '</td>';
       }
@@ -3997,11 +3997,11 @@ function renderAccount(id){
     var af = '';
     affects.sort(function(a, b){ return depthOf(a) - depthOf(b); }).forEach(function(k){
       af += '<tr><td><span class="cellrow">' +
-        (D[k].type === 'input' ? '<i class="mark-input"></i>' : '') +
-        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</button></span></td>' +
-        '<td style="text-align:left;color:' + T.sec + '">' + esc(D[k].u || '') + '</td>' +
+        (MODEL[k].type === 'input' ? '<i class="mark-input"></i>' : '') +
+        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(MODEL[k].label || k) + '</button></span></td>' +
+        '<td style="text-align:left;color:' + T.sec + '">' + esc(MODEL[k].u || '') + '</td>' +
         '<td>' + esc(fmtV(k, t)) + '</td>' +
-        '<td style="text-align:left"><span class="mono">' + esc(D[k].formula || '') + '</span></td></tr>';
+        '<td style="text-align:left"><span class="mono">' + esc(MODEL[k].formula || '') + '</span></td></tr>';
     });
     h += card('영향받는 계정 ' + affects.length + '개', '이 값을 바꾸면 다시 계산되는 노드', YRS[t] + ' 기준',
       '<div class="table-wrap"><table class="fm"><tr><th>계정</th><th style="text-align:left">단위</th>' +
@@ -4011,11 +4011,11 @@ function renderAccount(id){
     var dr = '';
     drivers.forEach(function(k){
       dr += '<tr class="drv"><td><span class="cellrow"><i class="mark-input"></i>' +
-        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</button></span></td>' +
-        '<td style="text-align:left;color:' + T.sec + '">' + esc(D[k].u || '') + '</td>' +
+        '<button class="rowlink" data-go="' + esc(k) + '">' + esc(MODEL[k].label || k) + '</button></span></td>' +
+        '<td style="text-align:left;color:' + T.sec + '">' + esc(MODEL[k].u || '') + '</td>' +
         '<td>' + esc(fmtV(k, t)) + '</td>' +
         '<td style="text-align:left;font-size:9.5px;color:' + T.body + ';white-space:normal;max-width:420px">' +
-        esc(descBody(D[k].desc).slice(0, 120)) + '</td></tr>';
+        esc(descBody(MODEL[k].desc).slice(0, 120)) + '</td></tr>';
     });
     h += card('연결된 가정변수 ' + drivers.length + '개', '', YRS[t] + ' 기준',
       '<div class="table-wrap"><table class="fm"><tr><th>가정변수</th><th style="text-align:left">단위</th>' +
@@ -4027,7 +4027,7 @@ function renderAccount(id){
 
 // 수식이 자식들의 단순 합인지 (기여도 % 표시 가능 여부)
 function isSumOfChildren(id){
-  var d = D[id]; if(!d || !d.formula) return false;
+  var d = MODEL[id]; if(!d || !d.formula) return false;
   var kids = childrenOf(id).slice().sort();
   if(!kids.length) return false;
   var toks = d.formula.split('+').map(function(s){ return s.trim(); });
@@ -4042,21 +4042,21 @@ function renderSummary(){
   var r = rootId(), t = UI.year, kids = childrenOf(r);
   var h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('home', 16) + ' Overview</div>' +
-    '<h1>' + esc(D[r].label || r) + '</h1>' +
-    '<p class="page-desc">' + esc(descBody(D[r].desc)) + '</p>' +
+    '<h1>' + esc(MODEL[r].label || r) + '</h1>' +
+    '<p class="page-desc">' + esc(descBody(MODEL[r].desc)) + '</p>' +
     '<div class="badge-row"><span class="badge hist">실적 ' + HIST_N + '개년</span>' +
     '<span class="badge calc">추정 ' + (YRS.length - HIST_N) + '개년</span>' +
     '<span class="badge input">가정변수 ' + nInputs() + '개</span>' +
-    '<span class="badge unit">' + esc(D[r].u || '') + '</span>' +
+    '<span class="badge unit">' + esc(MODEL[r].u || '') + '</span>' +
     '<button class="tb-btn" data-canvas="' + esc(r) + '" style="margin-left:4px">' +
       ic('git-branch', 16) + ' 전체 캔버스</button></div></div>';
 
   // KPI 카드 행은 제거했다 — 같은 숫자를 아래 차트가 막대 위 값 라벨로 직접 보여준다.
   // 검증 이슈 건수는 사이드바 `검증·이슈` 항목에 그대로 표시된다.
 
-  var series = kids.map(function(k){ return { label:D[k].label || k, color:nodeColor(k), values:D[k].v || [] }; });
+  var series = kids.map(function(k){ return { label:MODEL[k].label || k, color:nodeColor(k), values:MODEL[k].v || [] }; });
   h += '<div class="grid two">';
-  h += card('구성요소 누적 추이', kids.length + '개 계정 · 회색 = 실적', D[r].u || '',
+  h += card('구성요소 누적 추이', kids.length + '개 계정 · 회색 = 실적', MODEL[r].u || '',
     legendHTML(series) + chartSVG(series, { stacked:isSumOfChildren(r), height:36 }));
 
   var mixRows = '';
@@ -4064,13 +4064,13 @@ function renderSummary(){
   kids.forEach(function(k){
     var v = val(k, t), sh = tot ? v / tot : 0;
     mixRows += '<tr><td><span class="cellrow"><i class="legend-dot" style="background:' + nodeColor(k) + '"></i>' +
-      '<button class="rowlink" data-go="' + esc(k) + '">' + esc(D[k].label || k) + '</button></span></td>' +
+      '<button class="rowlink" data-go="' + esc(k) + '">' + esc(MODEL[k].label || k) + '</button></span></td>' +
       '<td>' + esc(fmtV(k, t)) + '</td>' +
       '<td><span class="contrib"><span class="contrib-bar"><i style="width:' +
       Math.min(100, Math.abs(sh) * 100).toFixed(1) + '%;background:' + nodeColor(k) + '"></i></span>' +
       (tot ? (sh * 100).toFixed(1) + '%' : '—') + '</span></td></tr>';
   });
-  h += card(YRS[t] + ' 구성비', '', D[r].u || '',
+  h += card(YRS[t] + ' 구성비', '', MODEL[r].u || '',
     '<div class="table-wrap"><table class="fm"><tr><th>계정</th><th>' + esc(YRS[t]) + '</th><th>비중</th></tr>' +
     mixRows + '</table></div>');
   h += '</div>';
@@ -4078,10 +4078,10 @@ function renderSummary(){
   // 상위 2단계 요약 테이블
   var rows = '';
   (function walk(id, lvl){
-    rows += nodeTr(id, lvl, lvl === 0 ? 'total' : (D[id].type === 'input' ? 'drv' : 'sub'));
+    rows += nodeTr(id, lvl, lvl === 0 ? 'total' : (MODEL[id].type === 'input' ? 'drv' : 'sub'));
     if(lvl < 2) childrenOf(id).forEach(function(k){ walk(k, lvl + 1); });
   })(r, 0);
-  h += card('계정 요약 (상위 3단계)', '', D[r].u || '',
+  h += card('계정 요약 (상위 3단계)', '', MODEL[r].u || '',
     '<div class="table-wrap"><table class="fm">' + yearTh('계정') + rows + '</table></div>');
   return h + '</div>';
 }
@@ -4095,7 +4095,7 @@ function renderAssumPage(){
   // 부모별 그룹
   var byParent = {};
   INPUT_KEYS.forEach(function(k){
-    var p = D[k].parent || '_';
+    var p = MODEL[k].parent || '_';
     (byParent[p] = byParent[p] || []).push(k);
   });
   var order = [];
@@ -4103,10 +4103,10 @@ function renderAssumPage(){
   if(byParent['_']) order.push('_');
 
   order.forEach(function(pid){
-    var p = D[pid] || { label:'기타' };
+    var p = MODEL[pid] || { label:'기타' };
     var rows = '';
     byParent[pid].forEach(function(k){
-      var d = D[k], changed = DEFAULTS_S[k] &&
+      var d = MODEL[k], changed = DEFAULTS_S[k] &&
         d.v.some(function(_, i){ return Math.abs(SV[k][i] - DEFAULTS_S[k][i]) > 1e-9; });
       rows += '<tr class="drv"><td><span class="cellrow"><i class="mark-input"></i>' +
         '<button class="rowlink" data-go="' + esc(k) + '">' + esc(d.label || k) + '</button>' +
@@ -4132,14 +4132,14 @@ function renderAssumPage(){
 function renderPLPage(){
   var rows = '';
   (function walk(id, lvl){
-    rows += nodeTr(id, lvl, lvl === 0 ? 'total' : (D[id].type === 'input' ? 'drv' : (lvl === 1 ? 'sub' : '')));
+    rows += nodeTr(id, lvl, lvl === 0 ? 'total' : (MODEL[id].type === 'input' ? 'drv' : (lvl === 1 ? 'sub' : '')));
     childrenOf(id).forEach(function(k){ walk(k, lvl + 1); });
   })(rootId(), 0);
   var h = '<div class="page">';
   h += '<div class="page-head"><div class="eyebrow caps">' + ic('grid', 16) + ' Model control</div>' +
     '<h1>전체 테이블</h1><p class="page-desc">전 노드 × 전 연도. ' +
     '점 = 가정변수(입력), 막대 = 계산 노드, 회색 열 = 실적.</p></div>';
-  h += card('모델 전체', Object.keys(D).length + '개 노드', '',
+  h += card('모델 전체', Object.keys(MODEL).length + '개 노드', '',
     '<div class="table-wrap" style="max-height:64vh"><table class="fm">' + yearTh('계정') + rows + '</table></div>' +
     '');
   return h + '</div>';
@@ -4149,27 +4149,27 @@ function renderPLPage(){
 function runChecks(){
   var out = [];
   // 1) 수식 오류
-  var errs = Object.keys(D).filter(function(k){ return D[k]._error; });
+  var errs = Object.keys(MODEL).filter(function(k){ return MODEL[k]._error; });
   out.push({ name:'수식 평가', status:errs.length ? 'err' : 'ok',
-    detail:errs.length ? errs.map(function(k){ return (D[k].label || k) + ': ' + D[k]._error; }).join(' / ') : '전체 노드 평가 성공',
+    detail:errs.length ? errs.map(function(k){ return (MODEL[k].label || k) + ': ' + MODEL[k]._error; }).join(' / ') : '전체 노드 평가 성공',
     keys:errs });
   // 2) 합계형 노드의 자식 합 정합
   var mismatch = [];
-  Object.keys(D).forEach(function(k){
+  Object.keys(MODEL).forEach(function(k){
     if(!isSumOfChildren(k)) return;
     var kids = childrenOf(k);
     for(var t = 0; t < YRS.length; t++){
       var s = 0; kids.forEach(function(c){ s += val(c, t); });
       var v = val(k, t), scale = Math.max(1, Math.abs(v));
-      if(Math.abs(s - v) / scale > 1e-6){ mismatch.push((D[k].label || k) + ' @' + YRS[t]); break; }
+      if(Math.abs(s - v) / scale > 1e-6){ mismatch.push((MODEL[k].label || k) + ' @' + YRS[t]); break; }
     }
   });
   out.push({ name:'부모 = 자식 합', status:mismatch.length ? 'err' : 'ok',
     detail:mismatch.length ? mismatch.join(', ') : '합계형 노드 전부 일치', keys:[] });
   // 3) 실적 구간 음수
   var negs = [];
-  Object.keys(D).forEach(function(k){
-    for(var t = 0; t < HIST_N; t++){ if(val(k, t) < 0){ negs.push((D[k].label || k) + ' @' + YRS[t]); break; } }
+  Object.keys(MODEL).forEach(function(k){
+    for(var t = 0; t < HIST_N; t++){ if(val(k, t) < 0){ negs.push((MODEL[k].label || k) + ' @' + YRS[t]); break; } }
   });
   out.push({ name:'실적 구간 음수', status:negs.length ? 'warn' : 'ok',
     detail:negs.length ? negs.join(', ') : '실적 구간에 음수 없음', keys:[] });
@@ -4177,7 +4177,7 @@ function runChecks(){
   var orphanIn = unusedInputs();
   out.push({ name:'미사용 가정변수', status:orphanIn.length ? 'warn' : 'ok',
     detail:orphanIn.length
-      ? orphanIn.map(function(k){ return D[k].label || k; }).join(', ') + ' — 어떤 계산에도 쓰이지 않음'
+      ? orphanIn.map(function(k){ return MODEL[k].label || k; }).join(', ') + ' — 어떤 계산에도 쓰이지 않음'
       : '모든 가정변수가 계산에 반영됨',
     keys:orphanIn });
   // 5) 시뮬레이션 변경분
@@ -4185,7 +4185,7 @@ function runChecks(){
   for(var k2 in DEFAULTS_S){
     if(!SV[k2]) continue;
     for(var i = 0; i < YRS.length; i++){
-      if(Math.abs(SV[k2][i] - DEFAULTS_S[k2][i]) > 1e-9){ changed.push(D[k2] ? (D[k2].label || k2) : k2); break; }
+      if(Math.abs(SV[k2][i] - DEFAULTS_S[k2][i]) > 1e-9){ changed.push(MODEL[k2] ? (MODEL[k2].label || k2) : k2); break; }
     }
   }
   out.push({ name:'초안 대비 변경', status:changed.length ? 'warn' : 'ok',
@@ -4193,7 +4193,7 @@ function runChecks(){
   // 6) 고아 노드 (root 밖)
   var reach = {}, r = rootId();
   (function walk(id){ reach[id] = 1; childrenOf(id).forEach(walk); })(r);
-  var orphan = Object.keys(D).filter(function(k){ return !reach[k]; });
+  var orphan = Object.keys(MODEL).filter(function(k){ return !reach[k]; });
   out.push({ name:'트리 연결', status:orphan.length ? 'err' : 'ok',
     detail:orphan.length ? '루트에서 도달 불가: ' + orphan.join(', ') : '전 노드가 루트에 연결됨', keys:orphan });
   return out;
@@ -4226,7 +4226,7 @@ function renderCanvasLegend(){
   var r = rootId(), kids = childrenOf(r);
   var h = '';
   kids.slice(0, 4).forEach(function(k){
-    h += '<span class="sw" style="background:' + nodeColor(k) + '"></span>' + esc(D[k].label || k) + ' ';
+    h += '<span class="sw" style="background:' + nodeColor(k) + '"></span>' + esc(MODEL[k].label || k) + ' ';
   });
   h += '<br><span class="sw" style="background:' + T.input + '"></span>가정변수(입력) · 점선 = 입력 노드';
   var el = document.getElementById('canvasLegend');

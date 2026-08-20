@@ -289,10 +289,10 @@ EV/EBITDA, PER, PSR. DCF와 병행 산출하여 교차 검증.
 
 ## 9. 데이터 계층
 
-### 9.1 `D` 객체 — 모든 시계열 데이터의 단일 저장소
+### 9.1 `MODEL` 객체 — 모든 시계열 데이터의 단일 저장소
 
 ```js
-const D = {
+const MODEL = {
   variable_key: {
     v:    [v_y1, v_y2, ..., v_yN],  // 연도별 값 (필수)
     u:    '원' | '명' | '대' | '%',   // 단위 표기 (필수)
@@ -319,7 +319,7 @@ const D = {
 ### 9.2 `INPUT_KEYS` — 입력값 자동 식별
 
 ```js
-INPUT_KEYS = new Set(Object.keys(D).filter(k => D[k].type === 'input'));
+INPUT_KEYS = new Set(Object.keys(MODEL).filter(k => MODEL[k].type === 'input'));
 ```
 
 `type:'input'`인 노드는 트리에서 **주황색 점(●) + "가정변수: 하드코딩"** 라벨이 붙고, 시뮬레이터·가정변수표에 자동 편입된다. 별도 `INPUT_KEYS` 수기 작성은 하지 않는다.
@@ -332,7 +332,7 @@ const HIST_N = 1;
 const _isFc = i => i >= HIST_N;
 ```
 
-배열 길이가 모든 `D[key].v`의 길이와 일치해야 함. `HIST_N`개 연도는 실적(Historical)으로 잠금 처리되고, 이후 연도는 추정(Forecast)으로 슬라이더 조정 가능하다.
+배열 길이가 모든 `MODEL[key].v`의 길이와 일치해야 함. `HIST_N`개 연도는 실적(Historical)으로 잠금 처리되고, 이후 연도는 추정(Forecast)으로 슬라이더 조정 가능하다.
 
 템플릿은 이 값을 기준으로 다음을 자동 처리한다.
 
@@ -344,20 +344,20 @@ const _isFc = i => i >= HIST_N;
 ### 9.4 `DEFAULTS_S` — 기본값 자동 보존
 
 ```js
-const DEFAULTS_S = deriveDefaultsFromD(); // D의 input 노드 v에서 자동 추출
+const DEFAULTS_S = deriveDefaultsFromModel(); // MODEL의 input 노드 v에서 자동 추출
 let SV = {}; for (let k in DEFAULTS_S) SV[k] = DEFAULTS_S[k].slice();
 ```
 
 - `DEFAULTS_S`: 원본 실적/사업계획값. 절대 변경하지 않음. 슬라이더의 주황색 마크 위치.
 - `SV`: 현재 시뮬레이터 상태. 슬라이더 조작 시에만 변경.
 - "기본값" 버튼은 `SV ← DEFAULTS_S` 복사.
-- `DEFAULTS_S`를 수기로 다시 쓰지 않는다. `D`와 기본값의 이중 입력을 막기 위함이다.
+- `DEFAULTS_S`를 수기로 다시 쓰지 않는다. `MODEL`와 기본값의 이중 입력을 막기 위함이다.
 
 ---
 
 ## 10. 트리 구조
 
-### 10.1 D.parent 기반 자동 트리
+### 10.1 MODEL.parent 기반 자동 트리
 
 ```js
 D = {
@@ -372,7 +372,7 @@ D = {
 }
 ```
 
-템플릿은 `D[k].parent`를 따라 `TREE`를 자동 생성한다. 예전의 `N()` / `DR()` 생성자는 호환용 stub만 남겨두며 신규 모델에서는 쓰지 않는다.
+템플릿은 `MODEL[k].parent`를 따라 `TREE`를 자동 생성한다. 예전의 `N()` / `DR()` 생성자는 호환용 stub만 남겨두며 신규 모델에서는 쓰지 않는다.
 
 **노드 속성**
 
@@ -545,7 +545,7 @@ function row(label, key, indent, bold, color, parentGroup) {
 
 ### 12.4 가정변수 일람
 
-`D`의 `type:'input'` 노드를 parent별로 자동 그룹화한다. 표에는 변수명, 설명 버튼, 연도별 값이 표시된다.
+`MODEL`의 `type:'input'` 노드를 parent별로 자동 그룹화한다. 표에는 변수명, 설명 버튼, 연도별 값이 표시된다.
 
 설명은 긴 텍스트를 표 안에 직접 넣지 않고 `ⓘ` 버튼 + 모달로 표시한다. `desc` 작성 규약은 다음과 같다.
 
@@ -655,14 +655,14 @@ function _switchCase(name) {
 
 ## 14. 시뮬레이션 엔진
 
-### 14.1 핵심 패턴: D.formula 기반 결정론적 재계산
+### 14.1 핵심 패턴: MODEL.formula 기반 결정론적 재계산
 
 ```js
 type:'computed',
 formula:'market_volume * share * asp'
 ```
 
-템플릿의 기본 엔진은 `D[k].formula`를 파싱해 토폴로지 순서로 계산한다. 회사별 모델에서 별도 `simCalc()`를 수기로 작성하지 않는다. 수식이 닫히지 않는 특수 항목만 custom layer에서 확장한다.
+템플릿의 기본 엔진은 `MODEL[k].formula`를 파싱해 토폴로지 순서로 계산한다. 회사별 모델에서 별도 `simCalc()`를 수기로 작성하지 않는다. 수식이 닫히지 않는 특수 항목만 custom layer에서 확장한다.
 
 지원 함수:
 
@@ -717,7 +717,7 @@ where input_ratio_j = SV[input_j][i] / DEFAULTS_S[input_j][i]
 SV[k][i] = newValue            (1) 입력값 갱신
   ↓
 simCalc()                       (2) 전체 P&L·B/S 재계산
-  ↓ for k in r: D[k].v = r[k]
+  ↓ for k in r: MODEL[k].v = r[k]
 renderAll()                     (3) Canvas 트리 재렌더링
   ↓
 refreshOpenChart()              (4) 열려있는 팝업 차트 갱신
@@ -829,7 +829,7 @@ IR/JSON은 Excel 생성을 돕는 보조 계약이다. 엑셀 생성기는 필�
 }
 ```
 
-`D` 객체 + 화면 구조 + 입력 변수 목록 + 각 노드의 수식 명세를 합치면 위 JSON이 됨. 다만 이 파일 자체가 목표는 아니다. 목표는 코워커/LLM 또는 `build_excel.py`가 같은 구조를 보고 수식이 박힌 Excel 모델을 재현하는 것이다.
+`MODEL` 객체 + 화면 구조 + 입력 변수 목록 + 각 노드의 수식 명세를 합치면 위 JSON이 됨. 다만 이 파일 자체가 목표는 아니다. 목표는 코워커/LLM 또는 `build_excel.py`가 같은 구조를 보고 수식이 박힌 Excel 모델을 재현하는 것이다.
 
 ---
 
@@ -1069,7 +1069,7 @@ FAST vs IB vs 회사 내규. 어느 표준이든 **일관성**이 핵심.
 |------|------|
 | 7~65 | CSS 스타일 |
 | 상단 | `YRS`, `HIST_N` |
-| 데이터 계층 | 데이터 객체 `D` |
+| 데이터 계층 | 데이터 객체 `MODEL` |
 | 파생 인덱스 | `INPUT_KEYS`, `TREE`, `SIM_SECS`, `DEFAULTS_S` 자동 생성 |
 | 렌더링 | 레이아웃·캔버스·차트 팝업·브릿지 |
 | UI | P&L 테이블·가정변수 일람·설명 모달 |

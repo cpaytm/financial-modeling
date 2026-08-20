@@ -84,7 +84,7 @@ Excel 모델 생성의 기준 입력은 BM md와 HTML에서 확정한 모델 구
 |---|---|
 | `YRS` | 모델 기간 |
 | `HIST_N` | 실적 Historical 연도 수. 첫 `HIST_N`개 열은 Historical, 이후는 Forecast |
-| `D` | 노드 딕셔너리 |
+| `MODEL` | 노드 딕셔너리 |
 | `label` | Excel 행 라벨 |
 | `parent` | 트리 구조 |
 | `type` | `input` 또는 `computed` |
@@ -620,7 +620,7 @@ def put_link(ws, cell_addr, formula, fmt=FMT_ACCT):
 ## 17. Claude/Codex 작업 절차
 
 1. 원본 Excel 완성본이 있으면 먼저 시트 구조, 행 구조, 수식 패턴을 읽습니다.
-2. HTML/IR의 `D` 구조와 원본 Excel 구조를 매핑합니다.
+2. HTML/IR의 `MODEL` 구조와 원본 Excel 구조를 매핑합니다.
 3. 반복 가능한 공통 구조는 Monoframe에 둡니다.
 4. 회사 특화 구조는 custom sheet mapper로 둡니다.
 5. 모델 생성 후 반드시 검증합니다.
